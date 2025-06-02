@@ -1,13 +1,18 @@
-const std = @import("std");
-const File = std.fs.File;
-const io = std.io;
-const Reader = std.fs.File.Reader;
+pub const fetching = @import("input/fetching.zig");
+pub const parsing = @import("input/fetching.zig");
 
-const std_in: File = std.io.getStdIn();
-const std_in_reader: Reader = std_in.reader();
+pub const Event = enum(u8) {
+    Input,
+    Delete,
+    Control,
+};
 
-pub fn getNextInput() !u8 {
-    const byte = try std_in_reader.readByte();
-    std.log.debug("\n{}\n", .{byte});
-    return byte;
+pub const Error = error{
+    FetchingError,
+};
+
+fn getInputEvent() Error!Event {
+    fetching.getNextInput() catch {
+        return Error.FetchingError;
+    };
 }

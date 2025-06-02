@@ -1,1 +1,3 @@
-pub const Signal = error{Exit};
+pub const Signal = error{
+    Exit,
+};
