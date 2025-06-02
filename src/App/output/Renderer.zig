@@ -3,7 +3,6 @@ const io = std.io;
 const ascii = std.ascii;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const Signal = @import("signals.zig").Signal;
 
 const ArrayList = std.ArrayListUnmanaged;
 const File = std.fs.File;
@@ -20,7 +19,7 @@ const ControlSequence = struct {
     const move_cursor_to_home = [1]u8{ascii.control_code.esc} ++ "[H";
 };
 
-const OutputRenderer = @This();
+const Renderer = @This();
 
 var arena: ArenaAllocator = undefined;
 
@@ -28,10 +27,10 @@ allocator: Allocator,
 std_out: File,
 output_buffer: ArrayList(ArrayList(u8)),
 
-pub fn init() OutputRenderer {
+pub fn init() Renderer {
     arena = ArenaAllocator.init(std.heap.page_allocator);
     const std_out = io.getStdOut();
-    return OutputRenderer{
+    return Renderer{
         .allocator = arena.allocator(),
 
         .std_out = std_out,
@@ -40,7 +39,7 @@ pub fn init() OutputRenderer {
     };
 }
 
-pub fn addCharToBuffer(self: *OutputRenderer, char: u8) Error!void {
+pub fn addCharToBuffer(self: *Renderer, char: u8) Error!void {
     if (self.output_buffer.items.len == 0) {
         self.output_buffer.append(self.allocator, ArrayList(u8).empty) catch {
             return Error.FailedToAppendToBuffer;
@@ -60,18 +59,18 @@ pub fn addCharToBuffer(self: *OutputRenderer, char: u8) Error!void {
     };
 }
 
-pub fn removeFromEndOfBuffer(self: *OutputRenderer) void {
+pub fn removeFromEndOfBuffer(self: *Renderer) void {
     _ = self.output_buffer.pop();
 }
 
-pub fn updateOutput(self: *OutputRenderer) Error!void {
+pub fn updateOutput(self: *Renderer) Error!void {
     const charToPrint = self.output_buffer.getLast().getLast();
     self.std_out.writer().print("{c}", .{charToPrint}) catch {
         return Error.FailedToWriteOutput;
     };
 }
 
-pub fn reRenderOutput(self: *OutputRenderer) Error!void {
+pub fn reRenderOutput(self: *Renderer) Error!void {
     try self.clearScreen();
     for (self.output_buffer.items, 0..) |line, row| {
         for (line.items) |char| {
@@ -87,7 +86,7 @@ pub fn reRenderOutput(self: *OutputRenderer) Error!void {
     }
 }
 
-fn clearScreen(self: *OutputRenderer) Error!void {
+fn clearScreen(self: *Renderer) Error!void {
     self.std_out.writer().print(
         "{s}",
         .{ControlSequence.clear_screen ++ ControlSequence.move_cursor_to_home},
@@ -96,7 +95,7 @@ fn clearScreen(self: *OutputRenderer) Error!void {
     };
 }
 
-pub fn deinit(self: *OutputRenderer) void {
+pub fn deinit(self: *Renderer) void {
     _ = self;
     arena.deinit();
 }
