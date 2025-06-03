@@ -24,7 +24,16 @@ pub fn deinit(self: *TextWindow) void {
 }
 
 pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
+    if (char == '\n' or char == '\r') {
+        self.text_buffer.appendSlice(self.allocator, "\r\n") catch return Error.FailedToAppendToBuffer;
+        return;
+    }
+
     self.text_buffer.append(self.allocator, char) catch return Error.FailedToAppendToBuffer;
+}
+
+pub fn addSequenceToBuffer(self: *TextWindow, sequence: []const u8) Error!void {
+    self.text_buffer.appendSlice(self.allocator, sequence) catch return Error.FailedToAppendToBuffer;
 }
 
 pub fn getLineSepperatedBuffer(self: TextWindow) mem.SplitIterator(u8, .sequence) {

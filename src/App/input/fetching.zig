@@ -7,19 +7,32 @@ const Reader = std.fs.File.Reader;
 const std_in: File = std.io.getStdIn();
 const std_in_reader: Reader = std_in.reader();
 
-pub fn getNextInput() Reader.NoEofError!u8 {
+pub const InputType = union(enum) {
+    character: u8,
+    sequence: []u8,
+};
+
+pub fn getNextInput() Reader.NoEofError!InputType {
     const input = try std_in_reader.readByte();
-    if (std.ascii.isAlphabetic(input) or input == '\n') {
-        return input;
+
+    if (isRegularInput(input)) {
+        return InputType{ .character = input };
     }
 
     if (std.ascii.isControl(input)) {
         std.log.debug("control input recieved: {c}", .{input});
-    } 
-    return 0;
+    }
+
+    return InputType{ .sequence = "" };
 }
 
-const ControlKeys = enum([]u8) {
+fn isRegularInput(input: u8) bool {
+    if (std.ascii.isPrint(input)) return true;
+    if (std.ascii.isWhitespace(input)) return true;
+    return false;
+}
+
+const ControlKey = enum([]u8) {
     up = "^[[A",
     down = "^[[B",
     left = "^[[D",

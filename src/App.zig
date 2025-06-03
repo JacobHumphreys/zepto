@@ -46,7 +46,16 @@ pub fn run(self: *App) Signal!void {
                 return Signal.Exit;
             };
         },
-        else => unreachable,
+        .control => |sequence| {
+            self.text_window.addSequenceToBuffer(sequence) catch |err| {
+                log.err("{any}", .{err});
+                return Signal.Exit;
+            };
+            output.rendering.reRenderOutput(self.text_window) catch |err| {
+                log.err("{any}", .{err});
+                return Signal.Exit;
+            };
+        },
     }
 
     return;
