@@ -6,8 +6,6 @@ const c = @cImport({
     @cInclude("time.h");
 });
 
-var std_err: fs.File = undefined;
-
 var log_file: ?fs.File = null;
 
 pub fn init() !void {
@@ -16,8 +14,10 @@ pub fn init() !void {
     const alloc = fba.allocator();
 
     const log_dir = try getLogDir(alloc);
-    log_file = try log_dir.createFile(try getTimeStamp(alloc), fs.File.CreateFlags{});
-    std.log.err("testing error logging", .{});
+    const timeStamp = try getTimeStamp(alloc);
+    const log_name = try std.mem.join(alloc, "", &.{ timeStamp, ".log" });
+
+    log_file = try log_dir.createFile(log_name, fs.File.CreateFlags{});
 }
 
 fn getLogDir(alloc: Allocator) !fs.Dir {
@@ -40,7 +40,8 @@ fn getTimeStamp(alloc: Allocator) ![]const u8 {
     _ = c.time(&now);
     const timeInfo = c.localtime(&now);
     const date = c.asctime(timeInfo);
-    return try std.fmt.allocPrintZ(alloc, "{s}", .{date});
+    const timeStamp = try std.fmt.allocPrintZ(alloc, "{s}", .{date});
+    return timeStamp[0 .. timeStamp.len - 1]; //remove trailing newLine
 }
 
 pub fn myLogFn(

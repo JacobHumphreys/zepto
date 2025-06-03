@@ -9,12 +9,12 @@ pub const std_options: std.Options = .{
 
 pub fn main() !void {
     try logging.init();
-    var app = try App.init();
+    var app = try App.init(std.heap.page_allocator);
+    defer app.deinit() catch {};
     while (true) {
         app.run() catch |err| switch (err) {
             App.Signal.Exit => break,
             else => return err,
         };
     }
-    try app.deinit();
 }

@@ -1,1 +1,2 @@
-pub const Renderer = @import("output/Renderer.zig");
+pub const rendering = @import("output/rendering.zig");
+pub const TextWindow = @import("output/TextWindow.zig");

@@ -1,18 +1,19 @@
-pub const fetching = @import("input/fetching.zig");
-pub const parsing = @import("input/fetching.zig");
+const fetching = @import("input/fetching.zig");
+const parsing = @import("input/fetching.zig");
 
-pub const Event = enum(u8) {
-    Input,
-    Delete,
-    Control,
+const Event = union(enum) {
+    input: u8,
+    delete,
+    control,
 };
 
 pub const Error = error{
     FetchingError,
 };
 
-fn getInputEvent() Error!Event {
-    fetching.getNextInput() catch {
+pub fn getInputEvent() Error!Event {
+    const input = fetching.getNextInput() catch {
         return Error.FetchingError;
     };
+    return Event{ .input = input };
 }
