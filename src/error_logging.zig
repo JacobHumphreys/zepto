@@ -44,7 +44,7 @@ fn getTimeStamp(alloc: Allocator) ![]const u8 {
     return timeStamp[0 .. timeStamp.len - 1]; //remove trailing newLine
 }
 
-pub fn myLogFn(
+pub fn log(
     comptime level: std.log.Level,
     comptime scope: @TypeOf(.EnumLiteral),
     comptime format: []const u8,
