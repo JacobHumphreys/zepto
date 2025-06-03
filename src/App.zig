@@ -1,4 +1,5 @@
 const std = @import("std");
+
 const log = std.log;
 const File = std.fs.File;
 const Allocator = std.mem.Allocator;
@@ -6,62 +7,41 @@ const Allocator = std.mem.Allocator;
 const Terminal = @import("App/Terminal.zig");
 pub const Signal = @import("App/signals.zig").Signal;
 const input = @import("App/input.zig");
-const output = @import("App/output.zig");
+const Outputter = @import("App/Outputter.zig");
 
 const App = @This();
 
 terminal: Terminal,
-text_window: output.TextWindow,
+outputter: Outputter,
 
 pub fn init(alloc: Allocator) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
-    try output.rendering.clearScreen();
-    const text_window = output.TextWindow.init(alloc);
+    const outputter = try Outputter.init(alloc);
 
     return App{
         .terminal = terminal,
-        .text_window = text_window,
+        .outputter = outputter,
     };
 }
 
 pub fn run(self: *App) Signal!void {
-    const event = input.getInputEvent() catch |err| {
+    var input_buffer: [8]u8 = undefined;
+    const event = input.getInputEvent(&input_buffer) catch |err| {
         log.err("{any}", .{err});
         return Signal.Exit;
     };
-    switch (event) {
-        .input => |char| {
-            if (char == 'q') {
-                return Signal.Exit;
-            }
 
-            self.text_window.addCharToBuffer(char) catch |err| {
-                log.err("{any}", .{err});
-                return Signal.Exit;
-            };
-
-            output.rendering.updateOutput(self.text_window) catch |err| {
-                log.err("{any}", .{err});
-                return Signal.Exit;
-            };
+    self.outputter.processEvent(event) catch |err| switch (err) {
+        Signal.Exit => return Signal.Exit,
+        else => {
+            log.err("{any}", .{err});
+            return Signal.Exit;
         },
-        .control => |sequence| {
-            self.text_window.addSequenceToBuffer(sequence) catch |err| {
-                log.err("{any}", .{err});
-                return Signal.Exit;
-            };
-            output.rendering.reRenderOutput(self.text_window) catch |err| {
-                log.err("{any}", .{err});
-                return Signal.Exit;
-            };
-        },
-    }
-
-    return;
+    };
 }
 
 pub fn deinit(self: *App) !void {
-    self.text_window.deinit();
+    self.outputter.deinit();
     try self.terminal.disableRawMode();
 }
