@@ -4,8 +4,8 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
 const input = @import("input.zig");
-pub const InputEvent = input.Event;
-pub const ControlSequence = input.ControlSequence;
+const InputEvent = input.Event;
+const ControlSequence = input.ControlSequence;
 const rendering = @import("output/rendering.zig");
 const TextWindow = @import("output/TextWindow.zig");
 const Signal = @import("signals.zig").Signal;
@@ -36,15 +36,13 @@ pub fn deinit(self: *Outputter) void {
 pub fn processEvent(self: *Outputter, event: InputEvent) (Error || Signal)!void {
     switch (event) {
         .input => |char| {
-            if (char == 'q') {
-                return Signal.Exit;
-            }
-
             try self.text_window.addCharToBuffer(char);
 
             return rendering.updateOutput(self.text_window);
         },
-        .control => |sequence| return self.processControlSequence(sequence),
+        .control => |sequence| {
+            return self.processControlSequence(sequence);
+        },
     }
 }
 
@@ -54,6 +52,18 @@ pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Erro
             const control_code = sequence.getValue().?;
             try self.text_window.addSequenceToBuffer(control_code);
             try rendering.reRenderOutput(self.text_window);
+        },
+
+        .left => self.text_window.moveCursor(.{ .x = -1, .y = 0 }),
+        .right => self.text_window.moveCursor(.{ .x = 1, .y = 0 }),
+
+        .up => self.text_window.moveCursor(.{ .x = 0, .y = -1 }),
+        .down => self.text_window.moveCursor(.{ .x = 0, .y = 1 }),
+
+        .exit => return Signal.Exit,
+        .backspace => {
+            std.log.info("backspace", .{});
+            return Signal.Exit;
         },
         else => return,
     }
