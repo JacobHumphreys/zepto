@@ -1,8 +1,8 @@
-const types = @import("input/types.zig");
-pub const Event = types.Event;
-pub const ControlSequence = types.ControlSequence;
 const fetching = @import("input/fetching.zig");
 const parsing = @import("input/parsing.zig");
+
+pub const ControlSequence = parsing.ControlSequence;
+pub const Event = parsing.Event;
 
 pub const Error = error{
     FetchingError,
