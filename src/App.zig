@@ -1,48 +1,47 @@
 const std = @import("std");
+
 const log = std.log;
 const File = std.fs.File;
+const Allocator = std.mem.Allocator;
 
 const Terminal = @import("App/Terminal.zig");
 pub const Signal = @import("App/signals.zig").Signal;
-const app_input = @import("App/input.zig");
-const OutputRenderer = @import("App/OutputRenderer.zig");
+const input = @import("App/input.zig");
+const Outputter = @import("App/Outputter.zig");
 
 const App = @This();
 
 terminal: Terminal,
-output_renderer: OutputRenderer,
+outputter: Outputter,
 
-pub fn init() !App {
+pub fn init(alloc: Allocator) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
+    const outputter = try Outputter.init(alloc);
+
     return App{
         .terminal = terminal,
-        .output_renderer = OutputRenderer.init(),
+        .outputter = outputter,
     };
 }
 
 pub fn run(self: *App) Signal!void {
-    const next_byte = app_input.fetching.getNextInput() catch |err| {
+    var input_buffer: [8]u8 = undefined;
+    const event = input.getInputEvent(&input_buffer) catch |err| {
         log.err("{any}", .{err});
         return Signal.Exit;
     };
 
-    if (next_byte == 'q') return Signal.Exit;
-
-    self.output_renderer.addCharToBuffer(next_byte) catch |err| {
-        log.err("{any}", .{err});
-        return Signal.Exit;
+    self.outputter.processEvent(event) catch |err| switch (err) {
+        Signal.Exit => return Signal.Exit,
+        else => {
+            log.err("{any}", .{err});
+            return Signal.Exit;
+        },
     };
-
-    self.output_renderer.updateOutput() catch |err| {
-        log.err("{any}", .{err});
-        return Signal.Exit;
-    };
-
-    return;
 }
 
 pub fn deinit(self: *App) !void {
-    self.output_renderer.deinit();
+    self.outputter.deinit();
     try self.terminal.disableRawMode();
 }
