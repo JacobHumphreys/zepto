@@ -3,7 +3,7 @@ const std = @import("std");
 const App = @import("App.zig");
 const Signal = @import("lib").Signal;
 
-const logging = @import("error_logging.zig");
+const logging = @import("logging.zig");
 pub const std_options: std.Options = .{
     .logFn = logging.log,
 };
