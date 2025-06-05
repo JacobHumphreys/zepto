@@ -1,6 +1,9 @@
 const std = @import("std");
 const linux = std.os.linux;
 const termios = linux.termios;
+
+const Vec2 = @import("lib").Vec2;
+
 const Terminal = @This();
 
 state: termios,
@@ -57,4 +60,9 @@ pub fn disableRawMode(self: *Terminal) Error!void {
     if (linux.tcsetattr(linux.STDIN_FILENO, linux.TCSA.FLUSH, &self.state) != 0) {
         return error.FailedToSetTermios;
     }
+}
+
+pub fn getWindowSize(self: *Terminal) Vec2 {
+    _ = self;
+    return .{ .x = 100, .y = 100 };
 }

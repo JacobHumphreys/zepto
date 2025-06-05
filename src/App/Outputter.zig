@@ -3,12 +3,14 @@ const log = std.log;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
+const lib = @import("lib");
+const InputEvent = lib.InputEvent;
+const Signal = lib.Signal;
+const ControlSequence = lib.ControlSequence;
+
 const input = @import("input.zig");
-const InputEvent = input.Event;
-const ControlSequence = input.ControlSequence;
 const rendering = @import("output/rendering.zig");
 const TextWindow = @import("output/TextWindow.zig");
-const Signal = @import("signals.zig").Signal;
 
 const Outputter = @This();
 
@@ -18,11 +20,11 @@ var arena: ArenaAllocator = undefined;
 
 text_window: TextWindow,
 
-pub fn init(allocator: Allocator) !Outputter {
+pub fn init(allocator: Allocator, dimensions: anytype) !Outputter {
     try rendering.clearScreen();
     arena = ArenaAllocator.init(allocator);
     const alloc = arena.allocator();
-    const text_window = TextWindow.init(alloc);
+    const text_window = TextWindow.init(alloc, dimensions);
     return Outputter{
         .text_window = text_window,
     };
@@ -70,7 +72,7 @@ pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Erro
 }
 
 test "MemTest" {
-    var outputter = try Outputter.init(std.testing.allocator);
+    var outputter = try Outputter.init(std.testing.allocator, .{ .x = 1, .y = 1 });
     defer outputter.deinit();
     try outputter.processEvent(.{ .input = '3' });
     try outputter.processEvent(.{ .control = .new_line });

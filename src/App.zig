@@ -5,7 +5,7 @@ const File = std.fs.File;
 const Allocator = std.mem.Allocator;
 
 const Terminal = @import("App/Terminal.zig");
-pub const Signal = @import("App/signals.zig").Signal;
+const Signal = @import("lib").Signal;
 const input = @import("App/input.zig");
 const Outputter = @import("App/Outputter.zig");
 
@@ -17,7 +17,8 @@ outputter: Outputter,
 pub fn init(alloc: Allocator) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
-    const outputter = try Outputter.init(alloc);
+    const windowDimensions = terminal.getWindowSize();
+    const outputter = try Outputter.init(alloc, windowDimensions);
 
     return App{
         .terminal = terminal,

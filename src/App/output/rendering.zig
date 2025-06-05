@@ -13,11 +13,6 @@ pub const Error = error{
     FailedToWriteOutput,
 };
 
-const ControlSequence = struct {
-    const clear_screen = [1]u8{ascii.control_code.esc} ++ "[2J";
-    const move_cursor_to_home = [1]u8{ascii.control_code.esc} ++ "[H";
-};
-
 var std_out: File = io.getStdOut();
 
 pub fn updateOutput(window: TextWindow) Error!void {
@@ -41,9 +36,11 @@ pub fn reRenderOutput(window: TextWindow) Error!void {
 }
 
 pub fn clearScreen() Error!void {
+    const clear_screen = [1]u8{ascii.control_code.esc} ++ "[2J";
+    const move_cursor_to_home = [1]u8{ascii.control_code.esc} ++ "[H";
     std_out.writer().print(
         "{s}",
-        .{ControlSequence.clear_screen ++ ControlSequence.move_cursor_to_home},
+        .{clear_screen ++ move_cursor_to_home},
     ) catch {
         return Error.FailedToClearScreen;
     };
