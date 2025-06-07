@@ -4,9 +4,9 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
 const lib = @import("lib");
-const InputEvent = lib.InputEvent;
+const InputEvent = lib.input.InputEvent;
 const Signal = lib.Signal;
-const ControlSequence = lib.ControlSequence;
+const ControlSequence = lib.input.ControlSequence;
 
 const input = @import("input.zig");
 const rendering = @import("output/rendering.zig");
@@ -56,15 +56,28 @@ pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Erro
             try rendering.reRenderOutput(self.text_window);
         },
 
-        .left => self.text_window.moveCursor(.{ .x = -1, .y = 0 }),
-        .right => self.text_window.moveCursor(.{ .x = 1, .y = 0 }),
+        .left => {
+            self.text_window.moveCursor(.{ .x = -1, .y = 0 });
+            try rendering.renderCursor(self.text_window);
+        },
+        .right => {
+            self.text_window.moveCursor(.{ .x = 1, .y = 0 });
+            try rendering.renderCursor(self.text_window);
+        },
 
-        .up => self.text_window.moveCursor(.{ .x = 0, .y = -1 }),
-        .down => self.text_window.moveCursor(.{ .x = 0, .y = 1 }),
+        .up => {
+            self.text_window.moveCursor(.{ .x = 0, .y = -1 });
+            try rendering.renderCursor(self.text_window);
+        },
+        .down => {
+            self.text_window.moveCursor(.{ .x = 0, .y = 1 });
+            try rendering.renderCursor(self.text_window);
+        },
 
         .exit => return Signal.Exit,
         .backspace => {
-            std.log.info("backspace", .{});
+            self.text_window.deleteAtCursorPosition();
+            try rendering.reRenderOutput(self.text_window);
             return Signal.Exit;
         },
         else => return,

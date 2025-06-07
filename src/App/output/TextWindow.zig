@@ -36,11 +36,20 @@ pub fn deinit(self: *TextWindow) void {
 }
 
 pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
-    self.text_buffer.append(self.allocator, char) catch return Error.FailedToAppendToBuffer;
+    self.text_buffer.insert(self.allocator, self.getCursorPositionIndex(), char) catch {
+        return Error.FailedToAppendToBuffer;
+    };
+    //    self.text_buffer.append(self.allocator, char) catch return Error.FailedToAppendToBuffer;
+    self.moveCursor(.{ .x = 1, .y = 0 });
 }
 
 pub fn addSequenceToBuffer(self: *TextWindow, sequence: []const u8) Error!void {
     self.text_buffer.appendSlice(self.allocator, sequence) catch return Error.FailedToAppendToBuffer;
+    self.moveCursor(.{ .x = 0, .y = 1 });
+}
+
+fn getCursorPositionIndex(self: TextWindow) usize {
+    return self.text_buffer.items.len;
 }
 
 pub fn getLineSepperatedBuffer(self: TextWindow) mem.SplitIterator(u8, .sequence) {
@@ -55,6 +64,10 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
     self.cursor_position.y = std.math.clamp(self.cursor_position.y, 0, self.dimensions.y - 1);
 }
 
+pub fn deleteAtCursorPosition(self: *TextWindow) void {
+    _ = self;
+}
+
 test "MemTest" {
     var t = TextWindow.init(std.testing.allocator, .{ .x = 100, .y = 100 });
     defer t.deinit();
@@ -66,9 +79,9 @@ test "cursor move" {
     var t = TextWindow.init(std.testing.allocator, .{ .x = 100, .y = 100 });
     defer t.deinit();
     t.moveCursor(.{ 3, 4 });
-    try std.testing.expect(t.cursor_position == .{ 3, 4 });
+    try std.testing.expect(t.cursor_position == .{ .x = 3, .y = 4 });
     t.moveCursor(.{ -3, -4 });
-    try std.testing.expect(t.cursor_position.x == .{ 0, 0 });
+    try std.testing.expect(t.cursor_position.x == .{ .x = 0, .y = 0 });
     t.moveCursor(.{ -1, 3 });
-    try std.testing.expect(t.cursor_position.x == .{ 0, 3 });
+    try std.testing.expect(t.cursor_position.x == .{ .x = 0, .y = 3 });
 }
