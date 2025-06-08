@@ -4,8 +4,11 @@ const Tuple = std.meta.Tuple;
 const ArrayList = std.ArrayListUnmanaged;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
+const testing = std.testing;
 
-const Vec2 = @import("lib").Vec2;
+const lib = @import("lib");
+const Vec2 = lib.Vec2;
+const ControlSequence = lib.input.ControlSequence;
 
 const TextWindow = @This();
 
@@ -15,7 +18,7 @@ pub const Error = error{
 
 var arena: ArenaAllocator = undefined;
 
-text_buffer: ArrayList(u8),
+text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
 cursor_position: Vec2,
 dimensions: Vec2,
 allocator: Allocator,
@@ -35,33 +38,97 @@ pub fn deinit(self: *TextWindow) void {
     arena.deinit();
 }
 
+///Adds char to input buffer at cursor position and moves cursor foreward
 pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
     self.text_buffer.insert(self.allocator, self.getCursorPositionIndex(), char) catch {
         return Error.FailedToAppendToBuffer;
     };
-    //    self.text_buffer.append(self.allocator, char) catch return Error.FailedToAppendToBuffer;
     self.moveCursor(.{ .x = 1, .y = 0 });
 }
 
-pub fn addSequenceToBuffer(self: *TextWindow, sequence: []const u8) Error!void {
-    self.text_buffer.appendSlice(self.allocator, sequence) catch return Error.FailedToAppendToBuffer;
-    self.moveCursor(.{ .x = 0, .y = 1 });
+///Adds sequence text to input buffer at cursor position and moves cursor foreward
+pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!void {
+    const sequence_text = sequence.getValue() orelse return;
+    self.text_buffer.insertSlice(self.allocator, self.getCursorPositionIndex(), sequence_text) catch {
+        return Error.FailedToAppendToBuffer;
+    };
+    self.moveCursor(Vec2{ .x = @as(i32, @intCast(sequence_text.len)), .y = 0 });
 }
 
 fn getCursorPositionIndex(self: TextWindow) usize {
-    return self.text_buffer.items.len;
+    var line_sep_list = self.getLineSepperatedList() catch |err| {
+        std.log.debug("Could not get line sep list {any}", .{err});
+        return self.text_buffer.items.len;
+    };
+    defer line_sep_list.deinit(self.allocator);
+
+    const col = @as(usize, @intCast(self.cursor_position.x));
+    const row = @as(usize, @intCast(self.cursor_position.y));
+    std.debug.assert(line_sep_list.items.len >= row);
+    std.debug.assert(line_sep_list.items[row].len >= col);
+
+    var index: usize = 0;
+    for (0..row) |r| {
+        index += line_sep_list.items[r].len;
+    }
+
+    index += col;
+
+    return index;
 }
 
-pub fn getLineSepperatedBuffer(self: TextWindow) mem.SplitIterator(u8, .sequence) {
+pub fn getLineSepperatedIterator(self: TextWindow) mem.SplitIterator(u8, .sequence) {
     return mem.splitSequence(u8, self.text_buffer.items, "\n");
 }
 
-pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
-    self.cursor_position.x += offset.x;
-    self.cursor_position.y += offset.y;
+fn getLineSepperatedList(self: TextWindow) !ArrayList([]u8) {
+    var line_sep_list: ArrayList([]u8) = .empty;
+    var buffer_window = self.text_buffer.items;
+    while (true) {
+        const nl_index = mem.indexOf(u8, buffer_window, "\r\n");
+        if (nl_index == null) {
+            try line_sep_list.append(self.allocator, buffer_window);
+            break;
+        }
+        try line_sep_list.append(self.allocator, buffer_window[0..nl_index.?]);
+        buffer_window = buffer_window[nl_index.? + 2 ..];
+    }
+    return line_sep_list;
+}
 
-    self.cursor_position.x = std.math.clamp(self.cursor_position.x, 0, self.dimensions.x - 1);
-    self.cursor_position.y = std.math.clamp(self.cursor_position.y, 0, self.dimensions.y - 1);
+pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
+    var line_sep_list = self.getLineSepperatedList() catch |err| {
+        std.log.debug("Could not get line sep list {any}", .{err});
+        return;
+    };
+    defer line_sep_list.deinit(self.allocator);
+
+    const largest_y_position = @max(
+        0,
+        @as(i32, @intCast(line_sep_list.items.len)) - 1,
+    );
+
+    const next_y_position = std.math.clamp(
+        self.cursor_position.y + offset.y,
+        0,
+        largest_y_position,
+    );
+
+    const largest_x_position = @max(
+        0,
+        @as(
+            i32,
+            @intCast(line_sep_list.items[@as(usize, @intCast(next_y_position))].len),
+        ),
+    );
+
+    const next_x_position = std.math.clamp(
+        self.cursor_position.x + offset.x,
+        0,
+        largest_x_position,
+    );
+
+    self.cursor_position = .{ .x = next_x_position, .y = next_y_position };
 }
 
 pub fn deleteAtCursorPosition(self: *TextWindow) void {
@@ -72,16 +139,79 @@ test "MemTest" {
     var t = TextWindow.init(std.testing.allocator, .{ .x = 100, .y = 100 });
     defer t.deinit();
     try t.addCharToBuffer('3');
-    try t.addSequenceToBuffer("\r\n");
+    try t.addSequenceToBuffer(.new_line);
 }
 
-test "cursor move" {
-    var t = TextWindow.init(std.testing.allocator, .{ .x = 100, .y = 100 });
+test "inserting" {
+    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
     defer t.deinit();
-    t.moveCursor(.{ 3, 4 });
-    try std.testing.expect(t.cursor_position == .{ .x = 3, .y = 4 });
-    t.moveCursor(.{ -3, -4 });
-    try std.testing.expect(t.cursor_position.x == .{ .x = 0, .y = 0 });
-    t.moveCursor(.{ -1, 3 });
-    try std.testing.expect(t.cursor_position.x == .{ .x = 0, .y = 3 });
+
+    try t.addCharToBuffer('1');
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(.{ .x = 0, .y = 1 });
+    t.cursor_position.x = 0;
+
+    try t.addCharToBuffer('2');
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(.{ .x = 0, .y = 1 });
+    t.cursor_position.x = 0;
+
+    try testing.expectEqualStrings("1\r\n2\r\n", t.text_buffer.items);
+}
+
+test "line sepperation" {
+    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    defer t.deinit();
+
+    try t.addCharToBuffer('1');
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(.{ .x = 0, .y = 1 });
+    t.cursor_position.x = 0;
+
+    try t.addCharToBuffer('2');
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(.{ .x = 0, .y = 1 });
+    t.cursor_position.x = 0;
+
+    var line_list = try t.getLineSepperatedList();
+    defer line_list.deinit(t.allocator);
+
+    //line count
+    try testing.expectEqual(3, line_list.items.len);
+
+    //line char count
+    try testing.expectEqual(1, line_list.items[0].len);
+    try testing.expectEqual(1, line_list.items[1].len);
+    try testing.expectEqual(2, line_list.items[2].len);
+
+    //content check
+    try testing.expectEqualStrings("1", line_list.items[0]);
+    try testing.expectEqualStrings("2", line_list.items[1]);
+    try testing.expectEqualStrings("34", line_list.items[2]);
+}
+
+test "get cursor index" {
+    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+
+    try testing.expectEqual(0, t.getCursorPositionIndex());
+    try t.addCharToBuffer('a');
+    try testing.expectEqual(1, t.getCursorPositionIndex());
+
+    t.moveCursor(Vec2{ .x = -1, .y = 0 });
+
+    try testing.expectEqualDeep(Vec2{ .x = 0, .y = 0 }, t.cursor_position);
+
+    try testing.expectEqual(0, t.getCursorPositionIndex());
+    t.moveCursor(Vec2{ .x = 1, .y = 0 });
+    try testing.expectEqual(1, t.getCursorPositionIndex());
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(Vec2{ .x = 0, .y = 1 });
+    try testing.expectEqual(3, t.getCursorPositionIndex());
+
+    t.deinit();
 }

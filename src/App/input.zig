@@ -27,14 +27,23 @@ pub fn getInputEvent(buffer: []u8) Error!InputEvent {
 
 pub fn parseEvent(input: []u8) InputEvent {
     if (input.len == 1) {
-        return switch (input[0]) {
-            '\n', '\r' => InputEvent{ .control = ControlSequence.new_line },
-            getControlCombination('q') => InputEvent{ .control = ControlSequence.exit },
-            control_code.del => return InputEvent{ .control = .backspace },
-            else => {
-                return InputEvent{ .input = input[0] };
+        switch (input[0]) {
+            getControlCombination('q') => {
+                return InputEvent{ .control = ControlSequence.exit };
             },
-        };
+            control_code.cr, control_code.lf => {
+                return InputEvent{ .control = ControlSequence.new_line };
+            },
+            control_code.del => {
+                return InputEvent{ .control = .backspace };
+            },
+            else => {
+                if (ascii.isPrint(input[0]))
+                    return InputEvent{ .input = input[0] }
+                else
+                    return InputEvent{ .control = .unknown };
+            },
+        }
     }
 
     return InputEvent{ .control = ControlSequence.from(input) };

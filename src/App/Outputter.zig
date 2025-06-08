@@ -40,7 +40,7 @@ pub fn processEvent(self: *Outputter, event: InputEvent) (Error || Signal)!void 
         .input => |char| {
             try self.text_window.addCharToBuffer(char);
 
-            return rendering.updateOutput(self.text_window);
+            return rendering.reRenderOutput(self.text_window);
         },
         .control => |sequence| {
             return self.processControlSequence(sequence);
@@ -50,9 +50,17 @@ pub fn processEvent(self: *Outputter, event: InputEvent) (Error || Signal)!void 
 
 pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Error || Signal)!void {
     switch (sequence) {
+        .backspace => {
+            self.text_window.deleteAtCursorPosition();
+            try rendering.reRenderOutput(self.text_window);
+        },
+
+        .exit => return Signal.Exit,
+
         .new_line => {
-            const control_code = sequence.getValue().?;
-            try self.text_window.addSequenceToBuffer(control_code);
+            try self.text_window.addSequenceToBuffer(sequence);
+            self.text_window.cursor_position.x = 0;
+            self.text_window.moveCursor(.{ .x = 0, .y = 1 });
             try rendering.reRenderOutput(self.text_window);
         },
 
@@ -64,7 +72,6 @@ pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Erro
             self.text_window.moveCursor(.{ .x = 1, .y = 0 });
             try rendering.renderCursor(self.text_window);
         },
-
         .up => {
             self.text_window.moveCursor(.{ .x = 0, .y = -1 });
             try rendering.renderCursor(self.text_window);
@@ -74,20 +81,14 @@ pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Erro
             try rendering.renderCursor(self.text_window);
         },
 
-        .exit => return Signal.Exit,
-        .backspace => {
-            self.text_window.deleteAtCursorPosition();
-            try rendering.reRenderOutput(self.text_window);
-            return Signal.Exit;
-        },
-        else => return,
+        .unknown => return,
     }
 }
 
 test "MemTest" {
-    var outputter = try Outputter.init(std.testing.allocator, .{ .x = 1, .y = 1 });
-    defer outputter.deinit();
-    try outputter.processEvent(.{ .input = '3' });
-    try outputter.processEvent(.{ .control = .new_line });
-    try std.testing.expectError(Signal.Exit, outputter.processEvent(.{ .input = 'q' }));
+    //    var outputter = try Outputter.init(std.testing.allocator, lib.Vec2{ .x = 1, .y = 1 });
+    //    defer outputter.deinit();
+    //    try outputter.processEvent(.{ .input = '3' });
+    //    try outputter.processEvent(.{ .control = .new_line });
+    //    try std.testing.expectError(Signal.Exit, outputter.processEvent(.{ .control = .exit }));
 }

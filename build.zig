@@ -15,15 +15,14 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    // This creates a "module", which represents a collection of source files alongside
-    // some compilation options, such as optimization mode and linked system libraries.
-    // Every executable or library we compile will be based on one or more modules.
     const lib_mod = b.createModule(.{
-        // `root_source_file` is the Zig "entry point" of the module. If a module
-        // only contains e.g. external object files, you can make this `null`.
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
         .root_source_file = b.path("src/lib.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const root_unit_tests_mod = b.createModule(.{
+        .root_source_file = b.path("src/root_unit_tests.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -43,13 +42,14 @@ pub fn build(b: *std.Build) void {
     // This is what allows Zig source code to use `@import("foo")` where 'foo' is not a
     // file path. In this case, we set up `exe_mod` to import `lib_mod`.
     exe_mod.addImport("lib", lib_mod);
+    root_unit_tests_mod.addImport("lib", lib_mod);
 
     // Now, we will create a static library based on the module we created above.
     // This creates a `std.Build.Step.Compile`, which is the build step responsible
     // for actually invoking the compiler.
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "root",
+        .name = "zepto",
         .root_module = lib_mod,
     });
 
@@ -105,6 +105,14 @@ pub fn build(b: *std.Build) void {
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
+    const root_unit_tests = b.addTest(.{
+        .root_module = root_unit_tests_mod,
+    });
+
+    const run_root_unit_tests = b.addRunArtifact(root_unit_tests);
+
+    // Creates a step for unit testing. This only builds the test executable
+    // but does not run it.
 
     const exe_unit_tests = b.addTest(.{
         .root_module = exe_mod,
@@ -119,5 +127,6 @@ pub fn build(b: *std.Build) void {
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+    test_step.dependOn(&run_root_unit_tests.step);
     test_step.dependOn(&run_exe_unit_tests.step);
 }
