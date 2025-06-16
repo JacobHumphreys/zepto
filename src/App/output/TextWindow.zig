@@ -14,6 +14,7 @@ const TextWindow = @This();
 
 pub const Error = error{
     FailedToAppendToBuffer,
+    NoSequenceValue,
 };
 
 var arena: ArenaAllocator = undefined;
@@ -34,13 +35,15 @@ pub fn init(alloc: Allocator, dimensions: Vec2) TextWindow {
 }
 
 pub fn deinit(self: *TextWindow) void {
-    _ = self;
+    self.text_buffer.deinit(self.allocator);
     arena.deinit();
 }
 
 ///Adds char to input buffer at cursor position and moves cursor foreward
 pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
-    self.text_buffer.insert(self.allocator, self.getCursorPositionIndex(), char) catch {
+    const cursor_position = self.getCursorPositionIndex();
+    std.log.info("cursor_position: {}", .{cursor_position});
+    self.text_buffer.insert(self.allocator, cursor_position, char) catch {
         return Error.FailedToAppendToBuffer;
     };
     self.moveCursor(.{ .x = 1, .y = 0 });
@@ -48,8 +51,9 @@ pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
 
 ///Adds sequence text to input buffer at cursor position and moves cursor foreward
 pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!void {
-    const sequence_text = sequence.getValue() orelse return;
-    self.text_buffer.insertSlice(self.allocator, self.getCursorPositionIndex(), sequence_text) catch {
+    const sequence_text = sequence.getValue() orelse return Error.NoSequenceValue;
+    const cursor_position = self.getCursorPositionIndex();
+    self.text_buffer.insertSlice(self.allocator, cursor_position, sequence_text) catch {
         return Error.FailedToAppendToBuffer;
     };
     self.moveCursor(Vec2{ .x = @as(i32, @intCast(sequence_text.len)), .y = 0 });
@@ -64,12 +68,17 @@ fn getCursorPositionIndex(self: TextWindow) usize {
 
     const col = @as(usize, @intCast(self.cursor_position.x));
     const row = @as(usize, @intCast(self.cursor_position.y));
+
+    //vertical position check
     std.debug.assert(line_sep_list.items.len >= row);
+
+    //horizontal position check
     std.debug.assert(line_sep_list.items[row].len >= col);
 
     var index: usize = 0;
     for (0..row) |r| {
         index += line_sep_list.items[r].len;
+        index += 2; // newline sequence length
     }
 
     index += col;
@@ -142,6 +151,31 @@ test "MemTest" {
     try t.addSequenceToBuffer(.new_line);
 }
 
+test "get cursor index" {
+    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+
+    //single char insertion
+    try testing.expectEqual(0, t.getCursorPositionIndex());
+    try t.addCharToBuffer('a');
+    try testing.expectEqual(1, t.getCursorPositionIndex());
+
+    //move back one
+    t.moveCursor(Vec2{ .x = -1, .y = 0 });
+
+    //cursor move check
+    try testing.expectEqualDeep(Vec2{ .x = 0, .y = 0 }, t.cursor_position);
+
+    try testing.expectEqual(0, t.getCursorPositionIndex());
+    t.moveCursor(Vec2{ .x = 1, .y = 0 });
+    try testing.expectEqual(1, t.getCursorPositionIndex());
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(Vec2{ .x = 0, .y = 1 });
+    try testing.expectEqual(3, t.getCursorPositionIndex());
+
+    t.deinit();
+}
+
 test "inserting" {
     var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
     defer t.deinit();
@@ -177,6 +211,9 @@ test "line sepperation" {
     t.moveCursor(.{ .x = 0, .y = 1 });
     t.cursor_position.x = 0;
 
+    try t.addCharToBuffer('3');
+    try t.addCharToBuffer('4');
+
     var line_list = try t.getLineSepperatedList();
     defer line_list.deinit(t.allocator);
 
@@ -192,26 +229,4 @@ test "line sepperation" {
     try testing.expectEqualStrings("1", line_list.items[0]);
     try testing.expectEqualStrings("2", line_list.items[1]);
     try testing.expectEqualStrings("34", line_list.items[2]);
-}
-
-test "get cursor index" {
-    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
-
-    try testing.expectEqual(0, t.getCursorPositionIndex());
-    try t.addCharToBuffer('a');
-    try testing.expectEqual(1, t.getCursorPositionIndex());
-
-    t.moveCursor(Vec2{ .x = -1, .y = 0 });
-
-    try testing.expectEqualDeep(Vec2{ .x = 0, .y = 0 }, t.cursor_position);
-
-    try testing.expectEqual(0, t.getCursorPositionIndex());
-    t.moveCursor(Vec2{ .x = 1, .y = 0 });
-    try testing.expectEqual(1, t.getCursorPositionIndex());
-
-    try t.addSequenceToBuffer(.new_line);
-    t.moveCursor(Vec2{ .x = 0, .y = 1 });
-    try testing.expectEqual(3, t.getCursorPositionIndex());
-
-    t.deinit();
 }
