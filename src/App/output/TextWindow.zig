@@ -78,7 +78,7 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     var index: usize = 0;
     for (0..row) |r| {
         index += line_sep_list.items[r].len;
-        index += 2; // newline sequence length
+        index += ControlSequence.new_line.getValue().?.len;
     }
 
     index += col;
@@ -86,23 +86,27 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     return index;
 }
 
-pub fn getLineSepperatedIterator(self: TextWindow) mem.SplitIterator(u8, .sequence) {
-    return mem.splitSequence(u8, self.text_buffer.items, "\n");
-}
-
-fn getLineSepperatedList(self: TextWindow) !ArrayList([]u8) {
+fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
     var line_sep_list: ArrayList([]u8) = .empty;
     var buffer_window = self.text_buffer.items;
+    const new_line_seq = ControlSequence.new_line.getValue().?;
     while (true) {
-        const nl_index = mem.indexOf(u8, buffer_window, "\r\n");
-        if (nl_index == null) {
+        const new_line_index = mem.indexOf(u8, buffer_window, new_line_seq);
+
+        if (new_line_index == null) {
             try line_sep_list.append(self.allocator, buffer_window);
             break;
         }
-        try line_sep_list.append(self.allocator, buffer_window[0..nl_index.?]);
-        buffer_window = buffer_window[nl_index.? + 2 ..];
+
+        try line_sep_list.append(self.allocator, buffer_window[0..new_line_index.?]);
+        buffer_window = buffer_window[new_line_index.? + new_line_seq.len ..];
     }
     return line_sep_list;
+}
+
+fn getLineSepperatedIterator(self: TextWindow) mem.SplitIterator(u8, .sequence) {
+    const new_line_seq = ControlSequence.new_line.getValue().?;
+    return mem.splitSequence(u8, self.text_buffer.items, new_line_seq);
 }
 
 pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
@@ -141,7 +145,45 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
 }
 
 pub fn deleteAtCursorPosition(self: *TextWindow) void {
-    _ = self;
+    var cursor_index = self.getCursorPositionIndex();
+
+    //at beginning of file
+    if (cursor_index == 0) {
+        return;
+    }
+
+    //delete new line
+    if (self.cursor_position.x == 0 and self.cursor_position.y != 0) {
+        const new_line_seq = ControlSequence.new_line.getValue().?;
+        const new_x_pos = @as(i32, @intCast(self.getLineAtRow(self.cursor_position.y - 1).len));
+        for (0..new_line_seq.len) |_| {
+            _ = self.text_buffer.orderedRemove(cursor_index - 1);
+            self.moveCursor(.{ .x = -1, .y = 0 });
+            cursor_index -= 1;
+        }
+        self.cursor_position.x = new_x_pos;
+        return;
+    }
+
+    //regular char delete
+    _ = self.text_buffer.orderedRemove(cursor_index - 1);
+    self.moveCursor(.{ .x = -1, .y = 0 });
+}
+
+fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
+    const new_line_seq = ControlSequence.new_line.getValue().?;
+
+    const row_count = mem.count(u8, self.text_buffer.items, new_line_seq) + 1;
+
+    var line_iter = self.getLineSepperatedIterator();
+    std.debug.assert(row <= row_count);
+    for (0..row_count) |curr_row| {
+        const line = line_iter.next();
+        if (@as(i32, @intCast(curr_row)) == row) {
+            return line.?;
+        }
+    }
+    unreachable;
 }
 
 test "MemTest" {
@@ -229,4 +271,50 @@ test "line sepperation" {
     try testing.expectEqualStrings("1", line_list.items[0]);
     try testing.expectEqualStrings("2", line_list.items[1]);
     try testing.expectEqualStrings("34", line_list.items[2]);
+}
+
+test "line peek" {
+    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    defer t.deinit();
+
+    try t.addCharToBuffer('1');
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(.{ .x = 0, .y = 1 });
+    t.cursor_position.x = 0;
+
+    try t.addCharToBuffer('2');
+    try t.addCharToBuffer('3');
+
+    const row_0 = t.getLineAtRow(0);
+    try testing.expectEqualStrings("1", row_0);
+    const row_1 = t.getLineAtRow(1);
+    try testing.expectEqualStrings("23", row_1);
+}
+
+test "Remove char" {
+    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    defer t.deinit();
+
+    try t.addCharToBuffer('1');
+
+    try t.addSequenceToBuffer(.new_line);
+    t.moveCursor(.{ .x = 0, .y = 1 });
+    t.cursor_position.x = 0;
+
+    try t.addCharToBuffer('2');
+    try t.addCharToBuffer('3');
+
+    //content check
+    try testing.expectEqualStrings("1", t.getLineAtRow(0));
+    try testing.expectEqualStrings("23", t.getLineAtRow(1));
+
+    t.deleteAtCursorPosition();
+
+    try testing.expectEqualStrings("2", t.getLineAtRow(1));
+    try testing.expectEqual(1, t.getLineAtRow(1).len);
+
+    t.deleteAtCursorPosition();
+    t.deleteAtCursorPosition();
+    try testing.expectEqualDeep(Vec2{ .x = 1, .y = 0 }, t.cursor_position);
 }
