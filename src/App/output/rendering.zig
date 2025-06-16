@@ -6,9 +6,10 @@ const Allocator = std.mem.Allocator;
 const File = std.fs.File;
 
 const TextWindow = @import("TextWindow.zig");
-const LinedStringBuffer = std.mem.SplitIterator(u8, u8);
 
-const Vec2 = @import("lib").Vec2;
+const lib = @import("lib");
+const Vec2 = lib.Vec2;
+const ControlSequence = lib.input.ControlSequence;
 
 pub const Error = error{
     FailedToClearScreen,
@@ -18,20 +19,17 @@ pub const Error = error{
 
 var std_out: File = io.getStdOut();
 
+///Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(window: TextWindow) Error!void {
     try clearScreen();
 
-    var line_split = window.getLineSepperatedIterator();
-    while (line_split.next()) |line| {
-        std_out.writer().print("{s}", .{line}) catch return Error.FailedToWriteOutput;
-
-        if (line_split.peek() != null) {
-            std_out.writer().print("\n", .{}) catch return Error.FailedToWriteOutput;
-        }
-    }
+    std_out.writer().print("{s}", .{window.text_buffer.items}) catch {
+        return Error.FailedToWriteOutput;
+    };
     try renderCursor(window);
 }
 
+///Uses terminal codes to set rendered cursor position based on window state
 pub fn renderCursor(window: TextWindow) Error!void {
     var write_buf: [16]u8 = undefined;
     const screen_space_position = getScreenSpaceCursorPosition(window.cursor_position);
