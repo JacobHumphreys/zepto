@@ -14,8 +14,8 @@ pub fn init() !void {
     const alloc = fba.allocator();
 
     const log_dir = try getLogDir(alloc);
-    const timeStamp = try getTimeStamp(alloc);
-    const log_name = try std.mem.join(alloc, "", &.{ timeStamp, ".log" });
+    const time_stamp = try getTimeStamp(alloc);
+    const log_name = try std.mem.join(alloc, "", &.{ time_stamp, ".log" });
 
     log_file = try log_dir.createFile(log_name, fs.File.CreateFlags{});
 }
@@ -28,20 +28,20 @@ fn getLogDir(alloc: Allocator) !fs.Dir {
 
     const log_dir_path = try fs.path.join(alloc, &.{ data_dir, "logs" });
 
-    const fileDir = fs.openDirAbsolute(log_dir_path, .{}) catch {
+    const file_dir = fs.openDirAbsolute(log_dir_path, .{}) catch {
         try fs.makeDirAbsolute(log_dir_path);
         return fs.openDirAbsolute(log_dir_path, .{});
     };
-    return fileDir;
+    return file_dir;
 }
 
 fn getTimeStamp(alloc: Allocator) ![]const u8 {
     var now: c.time_t = undefined;
     _ = c.time(&now);
-    const timeInfo = c.localtime(&now);
-    const date = c.asctime(timeInfo);
-    const timeStamp = try std.fmt.allocPrintZ(alloc, "{s}", .{date});
-    return timeStamp[0 .. timeStamp.len - 1]; //remove trailing newLine
+    const time_info = c.localtime(&now);
+    const date = c.asctime(time_info);
+    const time_stamp = try std.fmt.allocPrintZ(alloc, "{s}", .{date});
+    return time_stamp[0 .. time_stamp.len - 1]; //remove trailing newLine
 }
 
 pub fn log(

@@ -17,8 +17,8 @@ outputter: Outputter,
 pub fn init(alloc: Allocator) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
-    const windowDimensions = terminal.getWindowSize();
-    const outputter = try Outputter.init(alloc, windowDimensions);
+    const window_dimensions = terminal.getWindowSize();
+    const outputter = try Outputter.init(alloc, window_dimensions);
 
     return App{
         .terminal = terminal,

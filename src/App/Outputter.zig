@@ -84,11 +84,3 @@ pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Erro
         .unknown => return,
     }
 }
-
-test "MemTest" {
-    //    var outputter = try Outputter.init(std.testing.allocator, lib.Vec2{ .x = 1, .y = 1 });
-    //    defer outputter.deinit();
-    //    try outputter.processEvent(.{ .input = '3' });
-    //    try outputter.processEvent(.{ .control = .new_line });
-    //    try std.testing.expectError(Signal.Exit, outputter.processEvent(.{ .control = .exit }));
-}

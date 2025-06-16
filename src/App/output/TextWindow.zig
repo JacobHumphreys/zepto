@@ -18,6 +18,7 @@ pub const Error = error{
 };
 
 var arena: ArenaAllocator = undefined;
+const new_line_sequence = ControlSequence.new_line.getValue().?;
 
 text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
 cursor_position: Vec2,
@@ -78,7 +79,7 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     var index: usize = 0;
     for (0..row) |r| {
         index += line_sep_list.items[r].len;
-        index += ControlSequence.new_line.getValue().?.len;
+        index += new_line_sequence.len;
     }
 
     index += col;
@@ -89,9 +90,8 @@ fn getCursorPositionIndex(self: TextWindow) usize {
 fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
     var line_sep_list: ArrayList([]u8) = .empty;
     var buffer_window = self.text_buffer.items;
-    const new_line_seq = ControlSequence.new_line.getValue().?;
     while (true) {
-        const new_line_index = mem.indexOf(u8, buffer_window, new_line_seq);
+        const new_line_index = mem.indexOf(u8, buffer_window, new_line_sequence);
 
         if (new_line_index == null) {
             try line_sep_list.append(self.allocator, buffer_window);
@@ -99,7 +99,7 @@ fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
         }
 
         try line_sep_list.append(self.allocator, buffer_window[0..new_line_index.?]);
-        buffer_window = buffer_window[new_line_index.? + new_line_seq.len ..];
+        buffer_window = buffer_window[new_line_index.? + new_line_sequence.len ..];
     }
     return line_sep_list;
 }
@@ -171,9 +171,8 @@ pub fn deleteAtCursorPosition(self: *TextWindow) void {
 }
 
 fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
-    const new_line_seq = ControlSequence.new_line.getValue().?;
 
-    const row_count = mem.count(u8, self.text_buffer.items, new_line_seq) + 1;
+    const row_count = mem.count(u8, self.text_buffer.items, new_line_sequence) + 1;
 
     var line_iter = self.getLineSepperatedIterator();
     std.debug.assert(row <= row_count);
