@@ -116,10 +116,9 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
     };
     defer line_sep_list.deinit(self.allocator);
 
-    const largest_y_position = @max(
-        0,
-        @as(i32, @intCast(line_sep_list.items.len)) - 1,
-    );
+    const text_row_count = @max(0, @as(i32, @intCast(line_sep_list.items.len)) - 1);
+
+    const largest_y_position = @min(text_row_count, self.dimensions.y);
 
     const next_y_position = std.math.clamp(
         self.cursor_position.y + offset.y,
@@ -127,13 +126,14 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
         largest_y_position,
     );
 
-    const largest_x_position = @max(
+    const next_col_count: i32 = @max(
         0,
-        @as(
-            i32,
-            @intCast(line_sep_list.items[@as(usize, @intCast(next_y_position))].len),
-        ),
+        @as(i32, @intCast(
+            line_sep_list.items[@as(usize, @intCast(next_y_position))].len,
+        )),
     );
+
+    const largest_x_position = @min(next_col_count, self.dimensions.x - 1);
 
     const next_x_position = std.math.clamp(
         self.cursor_position.x + offset.x,
@@ -171,7 +171,6 @@ pub fn deleteAtCursorPosition(self: *TextWindow) void {
 }
 
 fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
-
     const row_count = mem.count(u8, self.text_buffer.items, new_line_sequence) + 1;
 
     var line_iter = self.getLineSepperatedIterator();

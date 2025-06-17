@@ -19,6 +19,9 @@ pub const Error = error{
 
 var std_out: File = io.getStdOut();
 
+pub const top_bar_height: usize = 2;
+pub var bottom_bar_height: usize = 2;
+
 ///Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(window: TextWindow) Error!void {
     try clearScreen();

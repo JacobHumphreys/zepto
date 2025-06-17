@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
 const lib = @import("lib");
+const Vec2 = lib.Vec2;
 const InputEvent = lib.input.InputEvent;
 const Signal = lib.Signal;
 const ControlSequence = lib.input.ControlSequence;
@@ -46,6 +47,13 @@ pub fn processEvent(self: *Outputter, event: InputEvent) (Error || Signal)!void 
             return self.processControlSequence(sequence);
         },
     }
+}
+
+pub fn setOutputDimensions(self: *Outputter, dimensions: Vec2) void {
+    var new_dimensions = dimensions;
+    new_dimensions.y -= @as(i32, @intCast(rendering.top_bar_height));
+    new_dimensions.y -= @as(i32, @intCast(rendering.bottom_bar_height));
+    self.text_window.dimensions = new_dimensions;
 }
 
 pub fn processControlSequence(self: *Outputter, sequence: ControlSequence) (Error || Signal)!void {

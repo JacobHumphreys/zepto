@@ -1,4 +1,5 @@
 const std = @import("std");
+const posix = std.posix;
 const linux = std.os.linux;
 const termios = linux.termios;
 
@@ -62,7 +63,11 @@ pub fn disableRawMode(self: *Terminal) Error!void {
     }
 }
 
-pub fn getWindowSize(self: *Terminal) Vec2 {
-    _ = self;
-    return .{ .x = 100, .y = 100 };
+pub fn getWindowSize() Vec2 {
+    var window_size: posix.winsize = undefined;
+    const result = posix.system.ioctl(posix.STDOUT_FILENO, posix.T.IOCGWINSZ, &window_size);
+    if (result == 1) {
+        std.log.err("failed to get window size", .{});
+    }
+    return .{ .x = @as(i32, @intCast(window_size.col)), .y = @as(i32, @intCast(window_size.row)) };
 }

@@ -17,7 +17,7 @@ outputter: Outputter,
 pub fn init(alloc: Allocator) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
-    const window_dimensions = terminal.getWindowSize();
+    const window_dimensions = Terminal.getWindowSize();
     const outputter = try Outputter.init(alloc, window_dimensions);
 
     return App{
@@ -27,6 +27,8 @@ pub fn init(alloc: Allocator) !App {
 }
 
 pub fn run(self: *App) Signal!void {
+    self.outputter.setOutputDimensions(Terminal.getWindowSize());
+
     var input_buffer: [8]u8 = undefined;
     const event = input.getInputEvent(&input_buffer) catch |err| {
         log.err("{any}", .{err});
