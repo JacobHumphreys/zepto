@@ -5,7 +5,7 @@ const File = std.fs.File;
 const Allocator = std.mem.Allocator;
 
 const Terminal = @import("App/Terminal.zig");
-pub const Signal = @import("App/signals.zig").Signal;
+const Signal = @import("lib").Signal;
 const input = @import("App/input.zig");
 const Outputter = @import("App/Outputter.zig");
 
@@ -17,7 +17,8 @@ outputter: Outputter,
 pub fn init(alloc: Allocator) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
-    const outputter = try Outputter.init(alloc);
+    const window_dimensions = Terminal.getWindowSize();
+    const outputter = try Outputter.init(alloc, window_dimensions);
 
     return App{
         .terminal = terminal,
@@ -26,6 +27,8 @@ pub fn init(alloc: Allocator) !App {
 }
 
 pub fn run(self: *App) Signal!void {
+    self.outputter.setOutputDimensions(Terminal.getWindowSize());
+
     var input_buffer: [8]u8 = undefined;
     const event = input.getInputEvent(&input_buffer) catch |err| {
         log.err("{any}", .{err});

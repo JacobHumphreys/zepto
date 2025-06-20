@@ -1,26 +1,9 @@
 const std = @import("std");
-
-const control_code = std.ascii.control_code;
-const EnumMap = std.enums.EnumMap;
+const EnumMap = std.EnumMap;
 const StaticStringMap = std.StaticStringMap;
+const control_code = std.ascii.control_code;
 
-pub fn parseEvent(input: []u8) Event {
-    if (input.len == 1) {
-        return switch (input[0]) {
-            '\n', '\r' => Event{ .control = ControlSequence.new_line },
-            getControlCombination('q') => Event{ .control = ControlSequence.exit },
-            else => Event{ .input = input[0] },
-        };
-    }
-
-    return Event{ .control = ControlSequence.from(input) };
-}
-
-fn getControlCombination(char: u8) u8 {
-    return char & std.ascii.control_code.us;
-}
-
-pub const Event = union(enum) {
+pub const InputEvent = union(enum) {
     input: u8,
     control: ControlSequence,
 };
@@ -62,3 +45,4 @@ const KeyCode = struct {
     const up = .{control_code.esc} ++ "[A";
     const down = .{control_code.esc} ++ "[B";
 };
+
