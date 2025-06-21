@@ -16,7 +16,7 @@ pub const Error = error{
 const std_in: File = std.io.getStdIn();
 const std_in_reader: Reader = std_in.reader();
 
-///Get next InputEvent struct representing user input
+/// Get next InputEvent struct representing user input
 pub fn getInputEvent(buffer: []u8) Error!InputEvent {
     const input = getNextInput(buffer) catch {
         return Error.FetchingError;
