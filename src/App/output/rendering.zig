@@ -5,9 +5,10 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const File = std.fs.File;
 
-const TextWindow = @import("TextWindow.zig");
+const RenderElement = @import("RenderElement.zig");
 
 const lib = @import("lib");
+const Renderable = lib.Renderable;
 const Vec2 = lib.Vec2;
 const ControlSequence = lib.input.ControlSequence;
 
@@ -19,23 +20,33 @@ pub const Error = error{
 
 var std_out: File = io.getStdOut();
 
-pub const top_bar_height: usize = 2;
-pub var bottom_bar_height: usize = 2;
-
 ///Causes full page redraw line by line. ReRenders text and cursor
-pub fn reRenderOutput(window: TextWindow) Error!void {
+pub fn reRenderOutput(elements: []RenderElement, alloc: Allocator) Error!void {
     try clearScreen();
 
-    std_out.writer().print("{s}", .{window.text_buffer.items}) catch {
-        return Error.FailedToWriteOutput;
-    };
-    try renderCursor(window);
+    for (elements, 0..) |element, i| {
+        if (!element.is_visible) continue;
+        try renderCursorFromGlobalSpace(element.position);
+        const element_output = element.value.toString(alloc) catch {
+            return Error.FailedToWriteOutput;
+        };
+
+        std_out.writer().print("{s}", .{element_output}) catch {
+            return Error.FailedToWriteOutput;
+        };
+        alloc.free(element_output);
+        if (i < elements.len - 1) {
+            std_out.writer().print("\n", .{}) catch {
+                return Error.FailedToWriteOutput;
+            };
+        }
+    }
 }
 
 ///Uses terminal codes to set rendered cursor position based on window state
-pub fn renderCursor(window: TextWindow) Error!void {
+pub fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
     var write_buf: [16]u8 = undefined;
-    const screen_space_position = getScreenSpaceCursorPosition(window.cursor_position);
+    const screen_space_position = getScreenSpaceCursorPosition(cursor_position);
     const cursor_move =
         std.fmt.bufPrint(
             &write_buf,
