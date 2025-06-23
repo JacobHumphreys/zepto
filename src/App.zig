@@ -5,29 +5,29 @@ const File = std.fs.File;
 const Allocator = std.mem.Allocator;
 
 const Terminal = @import("App/Terminal.zig");
-const Signal = @import("lib").Signal;
+const Signal = @import("lib").types.Signal;
 const input = @import("App/input.zig");
-const Outputter = @import("App/Outputter.zig");
+const UIHandler = @import("App/UIHandler.zig");
 
 const App = @This();
 
 terminal: Terminal,
-outputter: Outputter,
+ui_handler: UIHandler,
 
 pub fn init(alloc: Allocator) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
     const window_dimensions = Terminal.getWindowSize();
-    const outputter = try Outputter.init(alloc, window_dimensions);
+    const ui_handler = try UIHandler.init(alloc, window_dimensions);
 
     return App{
         .terminal = terminal,
-        .outputter = outputter,
+        .ui_handler = ui_handler,
     };
 }
 
 pub fn run(self: *App) Signal!void {
-    self.outputter.setOutputDimensions(Terminal.getWindowSize());
+    self.ui_handler.setOutputDimensions(Terminal.getWindowSize());
 
     var input_buffer: [8]u8 = undefined;
     const event = input.getInputEvent(&input_buffer) catch |err| {
@@ -35,7 +35,7 @@ pub fn run(self: *App) Signal!void {
         return Signal.Exit;
     };
 
-    self.outputter.processEvent(event) catch |err| switch (err) {
+    self.ui_handler.processEvent(event) catch |err| switch (err) {
         Signal.Exit => return Signal.Exit,
         else => {
             log.err("{any}", .{err});
@@ -45,6 +45,6 @@ pub fn run(self: *App) Signal!void {
 }
 
 pub fn deinit(self: *App) !void {
-    self.outputter.deinit();
+    self.ui_handler.deinit();
     try self.terminal.disableRawMode();
 }

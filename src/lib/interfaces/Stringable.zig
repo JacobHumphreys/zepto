@@ -1,17 +1,20 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const Renderable = @This();
-const Vec2 = @import("Vec2.zig");
+const Stringable = @This();
+const Vec2 = @import("../types.zig").Vec2;
 
 ptr: *anyopaque,
-toStringFn: *const fn (*anyopaque, Allocator) Allocator.Error![]const u8,
+vtable: VTable,
 
-/// Generates A Renderable Interface from a Pointer to a struct.
+const VTable = struct {
+    toString: *const fn (*anyopaque, Allocator) Allocator.Error![]const u8,
+};
+
+/// Generates A Stringable Interface from a Pointer to a struct.
 /// Struct MUST implement the following:
 ///
 ///     fn toString(*Self, Allocator) Allocator.Error![]const u8
-///     fn getPosition(*Self) Vec2
-pub fn from(selfPtr: anytype) Renderable {
+pub fn from(selfPtr: anytype) Stringable {
     const Tptr = @TypeOf(selfPtr);
     const generator = struct {
         fn getOpaquePtr(concretePtr: Tptr) *anyopaque {
@@ -28,12 +31,14 @@ pub fn from(selfPtr: anytype) Renderable {
         }
     };
 
-    return Renderable{
+    return Stringable{
         .ptr = generator.getOpaquePtr(selfPtr),
-        .toStringFn = generator.toStringOpaque,
+        .vtable = .{
+            .toString = generator.toStringOpaque,
+        },
     };
 }
 
-pub fn toString(self: Renderable, alloc: Allocator) Allocator.Error![]const u8 {
-    return self.toStringFn(self.ptr, alloc);
+pub fn toString(self: Stringable, alloc: Allocator) Allocator.Error![]const u8 {
+    return self.vtable.toString(self.ptr, alloc);
 }

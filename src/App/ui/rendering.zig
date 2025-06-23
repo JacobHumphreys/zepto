@@ -8,8 +8,8 @@ const File = std.fs.File;
 const RenderElement = @import("RenderElement.zig");
 
 const lib = @import("lib");
-const Renderable = lib.Renderable;
-const Vec2 = lib.Vec2;
+const Renderable = lib.interfaces.Renderable;
+const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.input.ControlSequence;
 
 pub const Error = error{
@@ -27,7 +27,7 @@ pub fn reRenderOutput(elements: []RenderElement, alloc: Allocator) Error!void {
     for (elements, 0..) |element, i| {
         if (!element.is_visible) continue;
         try renderCursorFromGlobalSpace(element.position);
-        const element_output = element.value.toString(alloc) catch {
+        const element_output = element.stringable.toString(alloc) catch {
             return Error.FailedToWriteOutput;
         };
 
@@ -41,6 +41,13 @@ pub fn reRenderOutput(elements: []RenderElement, alloc: Allocator) Error!void {
             };
         }
     }
+}
+
+pub fn renderCursor(current_window: RenderElement) Error!void {
+    const cursor_position = current_window.cursorContainer.?.getCursorPosition();
+    return renderCursorFromGlobalSpace(
+        cursor_position.add(current_window.position),
+    );
 }
 
 ///Uses terminal codes to set rendered cursor position based on window state

@@ -7,8 +7,9 @@ const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
 const lib = @import("lib");
-const Renderable = lib.Renderable;
-const Vec2 = lib.Vec2;
+const Stringable = lib.interfaces.Stringable;
+const CursorContainer = lib.interfaces.CursorContainer;
+const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.input.ControlSequence;
 
 const TextWindow = @This();
@@ -20,9 +21,9 @@ pub const Error = error{
 
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
-text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
 cursor_position: Vec2,
 dimensions: Vec2,
+text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
 allocator: Allocator,
 
 pub fn init(alloc: Allocator, dimensions: Vec2) TextWindow {
@@ -184,14 +185,23 @@ fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
     unreachable;
 }
 
+pub fn stringable(self: *TextWindow) Stringable {
+    return Stringable.from(self);
+}
+
+
 pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
     const output = try alloc.alloc(u8, self.text_buffer.items.len);
     @memcpy(output, self.text_buffer.items);
     return output;
 }
 
-pub fn renderable(self: *TextWindow) Renderable {
-    return Renderable.from(self);
+pub fn cursorContainer(self: *TextWindow) CursorContainer{
+    return CursorContainer.from(self);
+}
+
+pub fn getCursorPosition(self: *TextWindow) Vec2 {
+    return self.cursor_position;
 }
 
 test "MemTest" {

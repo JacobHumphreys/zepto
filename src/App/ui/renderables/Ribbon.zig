@@ -1,11 +1,12 @@
+//! A single line ui element without a cursor that has aligned text.
 const std = @import("std");
 const mem = std.mem;
 const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 
 const lib = @import("lib");
-const Renderable = lib.Renderable;
-const Vec2 = lib.Vec2;
+const Stringable = lib.interfaces.Stringable;
+const Vec2 = lib.types.Vec2;
 
 const Ribbon = @This();
 
@@ -21,14 +22,16 @@ pub fn init(
     var self = Ribbon{
         .allocator = alloc,
         .width = width,
-        .elements = try ArrayList([]const u8).initCapacity(alloc, elements.len),
+        .elements = ArrayList([]const u8).empty,
     };
 
-    for (elements) |element| {
-        self.elements.appendAssumeCapacity(element);
-    }
+    try self.elements.insertSlice(alloc, 0, elements);
 
     return self;
+}
+
+pub fn stringable(self: *Ribbon) Stringable {
+    return Stringable.from(self);
 }
 
 /// Outputs a string representing a single line no longer than the width of the ribbon with every
@@ -54,16 +57,12 @@ pub fn toString(self: *Ribbon, alloc: Allocator) Allocator.Error![]const u8 {
     return output_buffer;
 }
 
-pub fn renderable(self: *Ribbon) Renderable {
-    return Renderable.from(self);
-}
-
 pub fn deinit(self: *Ribbon) void {
     self.elements.deinit(self.allocator);
 }
 
 test "toString" {
-    var test_ribbon = try Ribbon.Init(
+    var test_ribbon = try Ribbon.init(
         std.testing.allocator,
         60,
         &.{ "C-X Exit", "C-C Copy", "C-V paste", "C-Q Quit" },

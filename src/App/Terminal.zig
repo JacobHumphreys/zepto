@@ -3,7 +3,7 @@ const posix = std.posix;
 const linux = std.os.linux;
 const termios = linux.termios;
 
-const Vec2 = @import("lib").Vec2;
+const Vec2 = @import("lib").types.Vec2;
 
 const Terminal = @This();
 

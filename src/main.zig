@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const App = @import("App.zig");
-const Signal = @import("lib").Signal;
+const Signal = @import("lib").types.Signal;
 
 const logging = @import("logging.zig");
 pub const std_options: std.Options = .{
