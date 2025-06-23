@@ -7,6 +7,7 @@ const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
 const lib = @import("lib");
+const Renderable = lib.Renderable;
 const Vec2 = lib.Vec2;
 const ControlSequence = lib.input.ControlSequence;
 
@@ -17,7 +18,6 @@ pub const Error = error{
     NoSequenceValue,
 };
 
-var arena: ArenaAllocator = undefined;
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
 text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
@@ -26,18 +26,16 @@ dimensions: Vec2,
 allocator: Allocator,
 
 pub fn init(alloc: Allocator, dimensions: Vec2) TextWindow {
-    arena = ArenaAllocator.init(alloc);
     return TextWindow{
         .cursor_position = .{ .x = 0, .y = 0 },
         .dimensions = dimensions,
         .text_buffer = .empty,
-        .allocator = arena.allocator(),
+        .allocator = alloc,
     };
 }
 
 pub fn deinit(self: *TextWindow) void {
     self.text_buffer.deinit(self.allocator);
-    arena.deinit();
 }
 
 ///Adds char to input buffer at cursor position and moves cursor foreward
@@ -87,6 +85,8 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     return index;
 }
 
+/// Allocates new arraylist using the structs internal allocator of the text buffer's lines,
+/// not including line breaks;
 fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
     var line_sep_list: ArrayList([]u8) = .empty;
     var buffer_window = self.text_buffer.items;
@@ -182,6 +182,16 @@ fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
         }
     }
     unreachable;
+}
+
+pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
+    const output = try alloc.alloc(u8, self.text_buffer.items.len);
+    @memcpy(output, self.text_buffer.items);
+    return output;
+}
+
+pub fn renderable(self: *TextWindow) Renderable {
+    return Renderable.from(self);
 }
 
 test "MemTest" {
