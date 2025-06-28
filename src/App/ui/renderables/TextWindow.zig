@@ -22,6 +22,7 @@ pub const Error = error{
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
 cursor_position: Vec2,
+cursor_index: Vec2,
 dimensions: Vec2,
 text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
 allocator: Allocator,
