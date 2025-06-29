@@ -22,7 +22,6 @@ pub const Error = error{
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
 cursor_position: Vec2,
-cursor_index: Vec2,
 dimensions: Vec2,
 text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
 allocator: Allocator,
@@ -57,7 +56,7 @@ pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!v
     self.text_buffer.insertSlice(self.allocator, cursor_position, sequence_text) catch {
         return Error.FailedToAppendToBuffer;
     };
-    self.moveCursor(Vec2{ .x = @as(i32, @intCast(sequence_text.len)), .y = 0 });
+    self.moveCursor(Vec2{ .x = intCast(i32, sequence_text.len), .y = 0 });
 }
 
 fn getCursorPositionIndex(self: TextWindow) usize {
@@ -67,8 +66,8 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     };
     defer line_sep_list.deinit(self.allocator);
 
-    const col = @as(usize, @intCast(self.cursor_position.x));
-    const row = @as(usize, @intCast(self.cursor_position.y));
+    const col = intCast(usize, self.cursor_position.x);
+    const row = intCast(usize, self.cursor_position.y);
 
     //vertical position check
     std.debug.assert(line_sep_list.items.len >= row);
@@ -111,6 +110,10 @@ fn getLineSepperatedIterator(self: TextWindow) mem.SplitIterator(u8, .sequence) 
     return mem.splitSequence(u8, self.text_buffer.items, new_line_seq);
 }
 
+inline fn intCast(comptime T: type, value: anytype) T {
+    return @as(T, @intCast(value));
+}
+
 pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
     var line_sep_list = self.getLineSepperatedList() catch |err| {
         std.log.debug("Could not get line sep list {any}", .{err});
@@ -118,9 +121,9 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
     };
     defer line_sep_list.deinit(self.allocator);
 
-    const text_row_count = @max(0, @as(i32, @intCast(line_sep_list.items.len)) - 1);
+    const text_row_count = @max(0, intCast(i32, line_sep_list.items.len) - 1);
 
-    const largest_y_position = @min(text_row_count, self.dimensions.y);
+    const largest_y_position = text_row_count;
 
     const next_y_position = std.math.clamp(
         self.cursor_position.y + offset.y,
@@ -130,12 +133,13 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
 
     const next_col_count: i32 = @max(
         0,
-        @as(i32, @intCast(
-            line_sep_list.items[@as(usize, @intCast(next_y_position))].len,
-        )),
+        intCast(
+            i32,
+            line_sep_list.items[intCast(usize, next_y_position)].len,
+        ),
     );
 
-    const largest_x_position = @min(next_col_count, self.dimensions.x - 1);
+    const largest_x_position = next_col_count;
 
     const next_x_position = std.math.clamp(
         self.cursor_position.x + offset.x,
@@ -157,7 +161,7 @@ pub fn deleteAtCursorPosition(self: *TextWindow) void {
     //delete new line
     if (self.cursor_position.x == 0 and self.cursor_position.y != 0) {
         const new_line_seq = ControlSequence.new_line.getValue().?;
-        const new_x_pos = @as(i32, @intCast(self.getLineAtRow(self.cursor_position.y - 1).len));
+        const new_x_pos = intCast(i32, self.getLineAtRow(self.cursor_position.y - 1).len);
         for (0..new_line_seq.len) |_| {
             _ = self.text_buffer.orderedRemove(cursor_index - 1);
             self.moveCursor(.{ .x = -1, .y = 0 });
@@ -179,32 +183,71 @@ fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
     std.debug.assert(row <= row_count);
     for (0..row_count) |curr_row| {
         const line = line_iter.next();
-        if (@as(i32, @intCast(curr_row)) == row) {
+        if (intCast(i32, curr_row) == row) {
             return line.?;
         }
     }
     unreachable;
 }
 
-pub fn stringable(self: *TextWindow) Stringable {
+fn getCursorViewPosition(self: TextWindow) Vec2 {
+    const view_bound: Vec2 = .{
+        .x = @divTrunc(self.cursor_position.x, self.dimensions.x) * self.dimensions.x,
+        .y = @divTrunc(self.cursor_position.y, self.dimensions.y) * self.dimensions.y,
+    };
+
+    return self.cursor_position.sub(view_bound);
+}
+
+fn getWindowView(self: TextWindow, alloc: Allocator) Allocator.Error![]u8 {
+    var output: ArrayList(u8) = .empty;
+
+    // 0 represents the first segment, 1 the second and so on.
+    const view_segment: Vec2 = .{
+        .x = @divTrunc(self.cursor_position.x, self.dimensions.x),
+        .y = @divTrunc(self.cursor_position.y, self.dimensions.y),
+    };
+
+    var line_sep_list = try self.getLineSepperatedList();
+    defer line_sep_list.deinit(self.allocator);
+
+    const lower_bound = Vec2{
+        .x = self.dimensions.x * view_segment.x,
+        .y = self.dimensions.y * view_segment.y,
+    };
+    const upper_bound = lower_bound.add(self.dimensions);
+
+    for (line_sep_list.items, 0..) |line, line_num| {
+        if (line_num < intCast(usize, lower_bound.y)) continue;
+        if (line_num >= intCast(usize, upper_bound.y)) break;
+
+        for (line, 0..) |char, i| {
+            if (i < intCast(usize, lower_bound.x)) continue;
+            if (i >= intCast(usize, upper_bound.x)) break;
+
+            try output.append(alloc, char);
+        }
+        try output.appendSlice(alloc, new_line_sequence);
+    }
+
+    return output.toOwnedSlice(alloc);
+}
+
+pub inline fn stringable(self: *TextWindow) Stringable {
     return Stringable.from(self);
 }
 
-
 pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
-    const output = try alloc.alloc(u8, self.text_buffer.items.len);
-    @memcpy(output, self.text_buffer.items);
-    return output;
+    return self.getWindowView(alloc);
 }
 
-pub fn cursorContainer(self: *TextWindow) CursorContainer{
+pub inline fn cursorContainer(self: *TextWindow) CursorContainer {
     return CursorContainer.from(self);
 }
 
-pub fn getCursorPosition(self: *TextWindow) Vec2 {
-    return self.cursor_position;
+pub inline fn getCursorPosition(self: *TextWindow) Vec2 {
+    return self.getCursorViewPosition();
 }
-
 test "MemTest" {
     var t = TextWindow.init(std.testing.allocator, .{ .x = 100, .y = 100 });
     defer t.deinit();

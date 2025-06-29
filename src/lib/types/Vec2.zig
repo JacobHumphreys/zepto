@@ -1,4 +1,8 @@
 const Vec2 = @This();
+
+pub const ZERO: Vec2 = .{ .x = 0, .y = 0 };
+pub const ONE: Vec2 = .{ .x = 0, .y = 0 };
+
 x: i32,
 y: i32,
 
@@ -6,6 +10,13 @@ pub fn add(self: Vec2, other: Vec2) Vec2 {
     return .{
         .x = self.x + other.x,
         .y = self.y + other.y,
+    };
+}
+
+pub fn mult(self: Vec2, value: i32) Vec2 {
+    return .{
+        .x = self.x * value,
+        .y = self.y * value,
     };
 }
 

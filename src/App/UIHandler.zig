@@ -196,18 +196,22 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Erro
 
         .left => {
             self.current_page.text_window.moveCursor(.{ .x = -1, .y = 0 });
+            try rendering.reRenderOutput(page_elements.items, self.alloc);
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
         .right => {
             self.current_page.text_window.moveCursor(.{ .x = 1, .y = 0 });
+            try rendering.reRenderOutput(page_elements.items, self.alloc);
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
         .up => {
             self.current_page.text_window.moveCursor(.{ .x = 0, .y = -1 });
+            try rendering.reRenderOutput(page_elements.items, self.alloc);
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
         .down => {
             self.current_page.text_window.moveCursor(.{ .x = 0, .y = 1 });
+            try rendering.reRenderOutput(page_elements.items, self.alloc);
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
 
