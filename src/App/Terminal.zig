@@ -3,7 +3,9 @@ const posix = std.posix;
 const linux = std.os.linux;
 const termios = linux.termios;
 
-const Vec2 = @import("lib").types.Vec2;
+const lib = @import("lib");
+const Vec2 = lib.types.Vec2;
+const intCast = lib.casts.intCast;
 
 const Terminal = @This();
 
@@ -69,5 +71,5 @@ pub fn getWindowSize() Vec2 {
     if (result == 1) {
         std.log.err("failed to get window size", .{});
     }
-    return .{ .x = @as(i32, @intCast(window_size.col)), .y = @as(i32, @intCast(window_size.row)) };
+    return .{ .x = intCast(i32, window_size.col), .y = intCast(i32, window_size.row) };
 }

@@ -11,6 +11,7 @@ const Stringable = lib.interfaces.Stringable;
 const CursorContainer = lib.interfaces.CursorContainer;
 const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.input.ControlSequence;
+const intCast = lib.casts.intCast;
 
 const TextWindow = @This();
 
@@ -59,6 +60,7 @@ pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!v
     self.moveCursor(Vec2{ .x = intCast(i32, sequence_text.len), .y = 0 });
 }
 
+/// Returns the position of the cursor
 fn getCursorPositionIndex(self: TextWindow) usize {
     var line_sep_list = self.getLineSepperatedList() catch |err| {
         std.log.debug("Could not get line sep list {any}", .{err});
@@ -91,9 +93,9 @@ fn getCursorPositionIndex(self: TextWindow) usize {
 fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
     var line_sep_list: ArrayList([]u8) = .empty;
     var buffer_window = self.text_buffer.items;
-    while (true) {
-        const new_line_index = mem.indexOf(u8, buffer_window, new_line_sequence);
 
+    var new_line_index = mem.indexOf(u8, buffer_window, new_line_sequence);
+    while (new_line_sequence != null) {
         if (new_line_index == null) {
             try line_sep_list.append(self.allocator, buffer_window);
             break;
@@ -101,17 +103,11 @@ fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
 
         try line_sep_list.append(self.allocator, buffer_window[0..new_line_index.?]);
         buffer_window = buffer_window[new_line_index.? + new_line_sequence.len ..];
+
+        new_line_index = mem.indexOf(u8, buffer_window, new_line_sequence);
     }
+
     return line_sep_list;
-}
-
-fn getLineSepperatedIterator(self: TextWindow) mem.SplitIterator(u8, .sequence) {
-    const new_line_seq = ControlSequence.new_line.getValue().?;
-    return mem.splitSequence(u8, self.text_buffer.items, new_line_seq);
-}
-
-inline fn intCast(comptime T: type, value: anytype) T {
-    return @as(T, @intCast(value));
 }
 
 pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
@@ -179,7 +175,7 @@ pub fn deleteAtCursorPosition(self: *TextWindow) void {
 fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
     const row_count = mem.count(u8, self.text_buffer.items, new_line_sequence) + 1;
 
-    var line_iter = self.getLineSepperatedIterator();
+    var line_iter = mem.splitSequence(u8, self.text_buffer.items, new_line_sequence);
     std.debug.assert(row <= row_count);
     for (0..row_count) |curr_row| {
         const line = line_iter.next();
@@ -190,16 +186,23 @@ fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
     unreachable;
 }
 
+/// Returns the positon of the cursor in screen space
 fn getCursorViewPosition(self: TextWindow) Vec2 {
     const view_bound: Vec2 = .{
         .x = @divTrunc(self.cursor_position.x, self.dimensions.x) * self.dimensions.x,
         .y = @divTrunc(self.cursor_position.y, self.dimensions.y) * self.dimensions.y,
     };
 
-    return self.cursor_position.sub(view_bound);
+    const screen_space_position = self.cursor_position.sub(view_bound);
+    std.log.debug("Cursor View Position %d", .{screen_space_position});
+    return screen_space_position;
 }
 
-fn getWindowView(self: TextWindow, alloc: Allocator) Allocator.Error![]u8 {
+pub inline fn stringable(self: *TextWindow) Stringable {
+    return Stringable.from(self);
+}
+
+pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
     var output: ArrayList(u8) = .empty;
 
     // 0 represents the first segment, 1 the second and so on.
@@ -233,14 +236,6 @@ fn getWindowView(self: TextWindow, alloc: Allocator) Allocator.Error![]u8 {
     return output.toOwnedSlice(alloc);
 }
 
-pub inline fn stringable(self: *TextWindow) Stringable {
-    return Stringable.from(self);
-}
-
-pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
-    return self.getWindowView(alloc);
-}
-
 pub inline fn cursorContainer(self: *TextWindow) CursorContainer {
     return CursorContainer.from(self);
 }
@@ -248,6 +243,7 @@ pub inline fn cursorContainer(self: *TextWindow) CursorContainer {
 pub inline fn getCursorPosition(self: *TextWindow) Vec2 {
     return self.getCursorViewPosition();
 }
+
 test "MemTest" {
     var t = TextWindow.init(std.testing.allocator, .{ .x = 100, .y = 100 });
     defer t.deinit();

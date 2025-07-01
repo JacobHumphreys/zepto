@@ -10,119 +10,18 @@ const Vec2 = lib.types.Vec2;
 const InputEvent = lib.input.InputEvent;
 const Signal = lib.types.Signal;
 const ControlSequence = lib.input.ControlSequence;
+const intCast = lib.casts.intCast;
 
-const input = @import("input.zig");
-const rendering = @import("ui/rendering.zig");
-const renderables = @import("ui/renderables.zig");
-const RenderElement = @import("ui/RenderElement.zig");
+const ui = @import("ui.zig");
+const rendering = ui.rendering;
+const Page = ui.Page;
 
 const UIHandler = @This();
-
-pub const Error = renderables.Error || rendering.Error;
-
-const Page = struct {
-    dimensions: Vec2,
-
-    text_window: renderables.TextWindow,
-    top_bar: renderables.Ribbon,
-    top_spacer: renderables.Spacer,
-    bottom_bar1: renderables.Ribbon,
-    bottom_bar2: renderables.Ribbon,
-    bottom_bar3: renderables.Ribbon,
-
-    cursor_parent: usize,
-
-    pub fn init(alloc: Allocator, dimensions: Vec2) Allocator.Error!Page {
-        const top_bar = try renderables.Ribbon.init(
-            alloc,
-            @as(usize, @intCast(dimensions.x)),
-            &.{"This is a test top ribbon"},
-        );
-
-        const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
-
-        const text_window = renderables.TextWindow.init(alloc, window_dimensions);
-
-        const spacer = renderables.Spacer.init(@as(usize, @intCast(window_dimensions.x)));
-
-        const bottom_bar1 = try renderables.Ribbon.init(
-            alloc,
-            @as(usize, @intCast(dimensions.x)),
-            &.{""},
-        );
-
-        const bottom_bar2 = try renderables.Ribbon.init(
-            alloc,
-            @as(usize, @intCast(dimensions.x)),
-            &.{"This is a test bottom ribbon 2"},
-        );
-
-        const bottom_bar3 = try renderables.Ribbon.init(
-            alloc,
-            @as(usize, @intCast(dimensions.x)),
-            &.{"This is a test bottom ribbon 3"},
-        );
-
-        return Page{
-            .dimensions = dimensions,
-            .top_bar = top_bar,
-            .top_spacer = spacer,
-            .text_window = text_window,
-            .bottom_bar1 = bottom_bar1,
-            .bottom_bar2 = bottom_bar2,
-            .bottom_bar3 = bottom_bar3,
-            .cursor_parent = 2,
-        };
-    }
-
-    pub fn getElements(self: *Page, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {
-        var element_list = try ArrayList(RenderElement).initCapacity(alloc, 6);
-        element_list.appendAssumeCapacity(RenderElement{
-            .stringable = self.top_bar.stringable(),
-            .is_visible = true,
-            .position = .{ .x = 0, .y = 0 },
-        });
-        element_list.appendAssumeCapacity(RenderElement{
-            .stringable = self.top_spacer.stringable(),
-            .is_visible = true,
-            .position = .{ .x = 0, .y = 1 },
-        });
-        element_list.appendAssumeCapacity(RenderElement{
-            .stringable = self.text_window.stringable(),
-            .cursorContainer = self.text_window.cursorContainer(),
-            .is_visible = true,
-            .position = .{ .x = 0, .y = 2 },
-        });
-        element_list.appendAssumeCapacity(RenderElement{
-            .stringable = self.bottom_bar1.stringable(),
-            .is_visible = true,
-            .position = .{ .x = 0, .y = self.dimensions.y - 3 },
-        });
-        element_list.appendAssumeCapacity(RenderElement{
-            .stringable = self.bottom_bar2.stringable(),
-            .is_visible = true,
-            .position = .{ .x = 0, .y = self.dimensions.y - 2 },
-        });
-        element_list.appendAssumeCapacity(RenderElement{
-            .stringable = self.bottom_bar3.stringable(),
-            .is_visible = true,
-            .position = .{ .x = 0, .y = self.dimensions.y - 1 },
-        });
-        return element_list;
-    }
-
-    pub fn deinit(self: *Page) void {
-        self.text_window.deinit();
-        self.bottom_bar1.deinit();
-        self.bottom_bar2.deinit();
-        self.top_bar.deinit();
-    }
-};
 
 current_page: Page,
 alloc: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || Error)!UIHandler {
+pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || ui.Error)!UIHandler {
     try rendering.clearScreen();
 
     var page = try Page.init(alloc, dimensions);
@@ -132,7 +31,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || Error)!UIHan
     try rendering.reRenderOutput(page_elements.items, alloc);
     try rendering.renderCursorFromGlobalSpace(.{
         .x = 0,
-        .y = @as(i32, @intCast(page.cursor_parent)),
+        .y = intCast(i32, page.cursor_parent),
     });
 
     page_elements.deinit(alloc);
@@ -147,7 +46,7 @@ pub fn deinit(self: *UIHandler) void {
     self.current_page.deinit();
 }
 
-pub fn processEvent(self: *UIHandler, event: InputEvent) (Error || Signal)!void {
+pub fn processEvent(self: *UIHandler, event: InputEvent) (ui.Error || Signal)!void {
     switch (event) {
         .input => |char| {
             var page_elements = self.current_page.getElements(self.alloc) catch {
@@ -172,7 +71,7 @@ pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) void {
     self.current_page.text_window.dimensions = dimensions;
 }
 
-pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Error || Signal)!void {
+pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.Error || Signal)!void {
     var page_elements = self.current_page.getElements(self.alloc) catch {
         return;
     };
