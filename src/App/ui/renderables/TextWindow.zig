@@ -94,18 +94,12 @@ fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
     var line_sep_list: ArrayList([]u8) = .empty;
     var buffer_window = self.text_buffer.items;
 
-    var new_line_index = mem.indexOf(u8, buffer_window, new_line_sequence);
-    while (new_line_sequence != null) {
-        if (new_line_index == null) {
-            try line_sep_list.append(self.allocator, buffer_window);
-            break;
-        }
-
-        try line_sep_list.append(self.allocator, buffer_window[0..new_line_index.?]);
-        buffer_window = buffer_window[new_line_index.? + new_line_sequence.len ..];
-
-        new_line_index = mem.indexOf(u8, buffer_window, new_line_sequence);
+    while (mem.indexOf(u8, buffer_window, new_line_sequence)) |new_line_index| {
+        try line_sep_list.append(self.allocator, buffer_window[0..new_line_index]);
+        buffer_window = buffer_window[new_line_index + new_line_sequence.len ..];
     }
+
+    try line_sep_list.append(self.allocator, buffer_window);
 
     return line_sep_list;
 }
@@ -194,7 +188,7 @@ fn getCursorViewPosition(self: TextWindow) Vec2 {
     };
 
     const screen_space_position = self.cursor_position.sub(view_bound);
-    std.log.debug("Cursor View Position %d", .{screen_space_position});
+    std.log.debug("Cursor View Position {any}", .{screen_space_position});
     return screen_space_position;
 }
 
