@@ -39,7 +39,8 @@ pub fn stringable(self: *Ribbon) Stringable {
 pub fn toString(self: *Ribbon, alloc: Allocator) Allocator.Error![]const u8 {
     const element_width = self.width / self.elements.items.len;
 
-    const output_buffer = try alloc.alloc(u8, element_width * self.elements.items.len);
+    const output_buffer = try alloc.alloc(u8, self.width);
+    @memset(output_buffer, ' ');
 
     for (self.elements.items, 0..) |element, i| {
         const start_index = i * element_width;
@@ -50,7 +51,6 @@ pub fn toString(self: *Ribbon, alloc: Allocator) Allocator.Error![]const u8 {
         } else {
             const fill_end_index = start_index + element.len;
             mem.copyForwards(u8, output_buffer[start_index..fill_end_index], element);
-            @memset(output_buffer[fill_end_index..end_index], ' ');
         }
     }
 

@@ -1,4 +1,6 @@
 const std = @import("std");
+const log = std.log;
+const assert = std.debug.assert;
 const mem = std.mem;
 const Tuple = std.meta.Tuple;
 const ArrayList = std.ArrayListUnmanaged;
@@ -43,7 +45,6 @@ pub fn deinit(self: *TextWindow) void {
 ///Adds char to input buffer at cursor position and moves cursor foreward
 pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
     const cursor_position = self.getCursorPositionIndex();
-    std.log.info("cursor_position: {}", .{cursor_position});
     self.text_buffer.insert(self.allocator, cursor_position, char) catch {
         return Error.FailedToAppendToBuffer;
     };
@@ -63,7 +64,7 @@ pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!v
 /// Returns the position of the cursor
 fn getCursorPositionIndex(self: TextWindow) usize {
     var line_sep_list = self.getLineSepperatedList() catch |err| {
-        std.log.debug("Could not get line sep list {any}", .{err});
+        log.err("Could not get line sep list {any}", .{err});
         return self.text_buffer.items.len;
     };
     defer line_sep_list.deinit(self.allocator);
@@ -72,10 +73,10 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     const row = intCast(usize, self.cursor_position.y);
 
     //vertical position check
-    std.debug.assert(line_sep_list.items.len >= row);
+    assert(line_sep_list.items.len >= row);
 
     //horizontal position check
-    std.debug.assert(line_sep_list.items[row].len >= col);
+    if (line_sep_list.items.len > 0) assert(line_sep_list.items[row].len >= col);
 
     var index: usize = 0;
     for (0..row) |r| {
@@ -99,14 +100,16 @@ fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
         buffer_window = buffer_window[new_line_index + new_line_sequence.len ..];
     }
 
-    try line_sep_list.append(self.allocator, buffer_window);
+    if (buffer_window.len >= 1) {
+        try line_sep_list.append(self.allocator, buffer_window);
+    }
 
     return line_sep_list;
 }
 
 pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
     var line_sep_list = self.getLineSepperatedList() catch |err| {
-        std.log.debug("Could not get line sep list {any}", .{err});
+        log.err("Could not get line sep list {any}", .{err});
         return;
     };
     defer line_sep_list.deinit(self.allocator);
@@ -121,13 +124,13 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
         largest_y_position,
     );
 
-    const next_col_count: i32 = @max(
-        0,
+    const next_col_count: i32 = if (line_sep_list.items.len > 0)
         intCast(
             i32,
             line_sep_list.items[intCast(usize, next_y_position)].len,
-        ),
-    );
+        )
+    else
+        0;
 
     const largest_x_position = next_col_count;
 
@@ -188,7 +191,7 @@ fn getCursorViewPosition(self: TextWindow) Vec2 {
     };
 
     const screen_space_position = self.cursor_position.sub(view_bound);
-    std.log.debug("Cursor View Position {any}", .{screen_space_position});
+    log.err("Cursor View Position {any}", .{screen_space_position});
     return screen_space_position;
 }
 
@@ -197,7 +200,9 @@ pub inline fn stringable(self: *TextWindow) Stringable {
 }
 
 pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
-    var output: ArrayList(u8) = .empty;
+    const render_size = intCast(usize, self.dimensions.x * self.dimensions.y);
+    const output = try alloc.alloc(u8, render_size);
+    @memset(output, ' ');
 
     // 0 represents the first segment, 1 the second and so on.
     const view_segment: Vec2 = .{
@@ -214,20 +219,34 @@ pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 
     };
     const upper_bound = lower_bound.add(self.dimensions);
 
-    for (line_sep_list.items, 0..) |line, line_num| {
-        if (line_num < intCast(usize, lower_bound.y)) continue;
-        if (line_num >= intCast(usize, upper_bound.y)) break;
+    for (line_sep_list.items, 0..) |line, row_num| {
+        //Limits output to only viewable vertical section of text_buffer
+        if (row_num < intCast(usize, lower_bound.y)) continue;
+        if (row_num >= intCast(usize, upper_bound.y)) break;
 
-        for (line, 0..) |char, i| {
-            if (i < intCast(usize, lower_bound.x)) continue;
-            if (i >= intCast(usize, upper_bound.x)) break;
+        for (line, 0..) |char, col_num| {
+            //Limits output to only viewable horizontal section of text_buffer
+            if (col_num < intCast(usize, lower_bound.x)) continue;
+            if (col_num >= intCast(usize, upper_bound.x)) break;
 
-            try output.append(alloc, char);
+            const char_pos = Vec2{
+                .x = intCast(i32, col_num),
+                .y = intCast(i32, row_num),
+            };
+
+            const char_index = getViewIndex(char_pos, lower_bound, self.dimensions);
+            output[char_index] = char;
         }
-        try output.appendSlice(alloc, new_line_sequence);
     }
 
-    return output.toOwnedSlice(alloc);
+    return output;
+}
+
+inline fn getViewIndex(char_pos: Vec2, lower_bound: Vec2, dimensions: Vec2) usize {
+    return intCast(
+        usize,
+        (char_pos.y - lower_bound.y) * dimensions.x + (char_pos.x - lower_bound.x),
+    );
 }
 
 pub inline fn cursorContainer(self: *TextWindow) CursorContainer {
@@ -308,21 +327,21 @@ test "line sepperation" {
     try t.addCharToBuffer('3');
     try t.addCharToBuffer('4');
 
-    var line_list = try t.getLineSepperatedList();
-    defer line_list.deinit(t.allocator);
+    var line_sep_list = try t.getLineSepperatedList();
+    defer line_sep_list.deinit(t.allocator);
 
     //line count
-    try testing.expectEqual(3, line_list.items.len);
+    try testing.expectEqual(3, line_sep_list.items.len);
 
     //line char count
-    try testing.expectEqual(1, line_list.items[0].len);
-    try testing.expectEqual(1, line_list.items[1].len);
-    try testing.expectEqual(2, line_list.items[2].len);
+    try testing.expectEqual(1, line_sep_list.items[0].len);
+    try testing.expectEqual(1, line_sep_list.items[1].len);
+    try testing.expectEqual(2, line_sep_list.items[2].len);
 
     //content check
-    try testing.expectEqualStrings("1", line_list.items[0]);
-    try testing.expectEqualStrings("2", line_list.items[1]);
-    try testing.expectEqualStrings("34", line_list.items[2]);
+    try testing.expectEqualStrings("1", line_sep_list.items[0]);
+    try testing.expectEqualStrings("2", line_sep_list.items[1]);
+    try testing.expectEqualStrings("34", line_sep_list.items[2]);
 }
 
 test "line peek" {

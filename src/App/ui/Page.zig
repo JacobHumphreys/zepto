@@ -34,12 +34,12 @@ pub fn init(alloc: Allocator, dimensions: Vec2) Allocator.Error!Page {
 
     const text_window = renderables.TextWindow.init(alloc, window_dimensions);
 
-    const spacer = renderables.Spacer.init(intCast(usize, window_dimensions.x));
+    const spacer = renderables.Spacer.init(intCast(usize, dimensions.x));
 
     const bottom_bar1 = try renderables.Ribbon.init(
         alloc,
         intCast(usize, dimensions.x),
-        &.{""},
+        &.{"This is test bottom ribbon 1"},
     );
 
     const bottom_bar2 = try renderables.Ribbon.init(

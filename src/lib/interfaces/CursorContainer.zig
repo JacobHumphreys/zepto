@@ -46,8 +46,8 @@ pub fn from(selfPtr: anytype) CursorContainer {
     return CursorContainer{
         .ptr = generator.getOpaquePtr(selfPtr),
         .vtable = .{
-            .getCursorPosition =  generator.getCursorPositionOpaque,
-            .moveCursor  = generator.moveCursorOpaque,
+            .getCursorPosition = generator.getCursorPositionOpaque,
+            .moveCursor = generator.moveCursorOpaque,
         },
     };
 }

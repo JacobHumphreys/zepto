@@ -1,6 +1,5 @@
 //! Handles ui rendering and processing of input events at a high level.
 const std = @import("std");
-const log = std.log;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
@@ -28,7 +27,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || ui.Error)!UI
 
     var page_elements = try page.getElements(alloc);
 
-    try rendering.reRenderOutput(page_elements.items, alloc);
+    try rendering.reRenderOutput(page_elements.items, dimensions, alloc);
     try rendering.renderCursorFromGlobalSpace(.{
         .x = 0,
         .y = intCast(i32, page.cursor_parent),
@@ -56,7 +55,11 @@ pub fn processEvent(self: *UIHandler, event: InputEvent) (ui.Error || Signal)!vo
 
             try self.current_page.text_window.addCharToBuffer(char);
 
-            try rendering.reRenderOutput(page_elements.items, self.alloc);
+            try rendering.reRenderOutput(
+                page_elements.items,
+                self.current_page.dimensions,
+                self.alloc,
+            );
             return rendering.renderCursor(
                 page_elements.items[self.current_page.cursor_parent],
             );
@@ -68,7 +71,7 @@ pub fn processEvent(self: *UIHandler, event: InputEvent) (ui.Error || Signal)!vo
 }
 
 pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) void {
-    self.current_page.text_window.dimensions = dimensions;
+    self.current_page.dimensions = dimensions;
 }
 
 pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.Error || Signal)!void {
@@ -79,7 +82,11 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.E
     switch (sequence) {
         .backspace => {
             self.current_page.text_window.deleteAtCursorPosition();
-            try rendering.reRenderOutput(page_elements.items, self.alloc);
+            try rendering.reRenderOutput(
+                page_elements.items,
+                self.current_page.dimensions,
+                self.alloc,
+            );
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
 
@@ -89,28 +96,48 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.E
             try self.current_page.text_window.addSequenceToBuffer(sequence);
             self.current_page.text_window.cursor_position.x = 0;
             self.current_page.text_window.moveCursor(.{ .x = 0, .y = 1 });
-            try rendering.reRenderOutput(page_elements.items, self.alloc);
+            try rendering.reRenderOutput(
+                page_elements.items,
+                self.current_page.dimensions,
+                self.alloc,
+            );
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
 
         .left => {
             self.current_page.text_window.moveCursor(.{ .x = -1, .y = 0 });
-            try rendering.reRenderOutput(page_elements.items, self.alloc);
+            try rendering.reRenderOutput(
+                page_elements.items,
+                self.current_page.dimensions,
+                self.alloc,
+            );
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
         .right => {
             self.current_page.text_window.moveCursor(.{ .x = 1, .y = 0 });
-            try rendering.reRenderOutput(page_elements.items, self.alloc);
+            try rendering.reRenderOutput(
+                page_elements.items,
+                self.current_page.dimensions,
+                self.alloc,
+            );
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
         .up => {
             self.current_page.text_window.moveCursor(.{ .x = 0, .y = -1 });
-            try rendering.reRenderOutput(page_elements.items, self.alloc);
+            try rendering.reRenderOutput(
+                page_elements.items,
+                self.current_page.dimensions,
+                self.alloc,
+            );
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
         .down => {
             self.current_page.text_window.moveCursor(.{ .x = 0, .y = 1 });
-            try rendering.reRenderOutput(page_elements.items, self.alloc);
+            try rendering.reRenderOutput(
+                page_elements.items,
+                self.current_page.dimensions,
+                self.alloc,
+            );
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
 
