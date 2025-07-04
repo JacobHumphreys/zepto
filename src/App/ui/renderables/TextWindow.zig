@@ -191,7 +191,6 @@ fn getCursorViewPosition(self: TextWindow) Vec2 {
     };
 
     const screen_space_position = self.cursor_position.sub(view_bound);
-    log.err("Cursor View Position {any}", .{screen_space_position});
     return screen_space_position;
 }
 
