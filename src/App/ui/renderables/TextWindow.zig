@@ -2,9 +2,7 @@ const std = @import("std");
 const log = std.log;
 const assert = std.debug.assert;
 const mem = std.mem;
-const Tuple = std.meta.Tuple;
 const ArrayList = std.ArrayListUnmanaged;
-const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
@@ -19,6 +17,7 @@ const TextWindow = @This();
 
 pub const Error = error{
     FailedToAppendToBuffer,
+    FailedToRemoveFromBuffer,
     NoSequenceValue,
 };
 
@@ -89,8 +88,34 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     return index;
 }
 
+/// From an index within text_buffer returns the cursor position.
+fn getCursorPositionFromIndex(self: TextWindow, index: usize) !Vec2 {
+    assert(self.text_buffer.items.len >= index);
+
+    var position = Vec2.ZERO;
+
+    var line_sep_list = try self.getLineSepperatedList();
+    defer line_sep_list.deinit(self.allocator);
+
+    var current_index: usize = 0;
+    for (line_sep_list.items, 0..) |line, line_index| {
+        const final_line_index = current_index + line.len + new_line_sequence.len;
+
+        if (final_line_index <= index and line_index != line_sep_list.items.len - 1) {
+            current_index = final_line_index;
+            position.y += 1;
+            continue;
+        }
+
+        position.x += intCast(i32, index - current_index);
+
+        break;
+    }
+    return position;
+}
+
 /// Allocates new arraylist using the structs internal allocator of the text buffer's lines,
-/// not including line breaks;
+/// not including line breaks; Adds an empty line to the end if newline is final
 fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
     var line_sep_list: ArrayList([]u8) = .empty;
     var buffer_window = self.text_buffer.items;
@@ -100,9 +125,9 @@ fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
         buffer_window = buffer_window[new_line_index + new_line_sequence.len ..];
     }
 
-    if (buffer_window.len >= 1) {
-        try line_sep_list.append(self.allocator, buffer_window);
-    }
+    // If buffer_window is empty allows cursor to be moved to empty new line.
+    // else adds rest of buffer to new line
+    try line_sep_list.append(self.allocator, buffer_window);
 
     return line_sep_list;
 }
@@ -114,9 +139,9 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
     };
     defer line_sep_list.deinit(self.allocator);
 
-    const text_row_count = @max(0, intCast(i32, line_sep_list.items.len) - 1);
+    const text_row_count = intCast(i32, line_sep_list.items.len);
 
-    const largest_y_position = text_row_count;
+    const largest_y_position = @max(0, text_row_count - 1);
 
     const next_y_position = std.math.clamp(
         self.cursor_position.y + offset.y,
@@ -143,24 +168,19 @@ pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
     self.cursor_position = .{ .x = next_x_position, .y = next_y_position };
 }
 
-pub fn deleteAtCursorPosition(self: *TextWindow) void {
+pub fn deleteAtCursorPosition(self: *TextWindow) Error!void {
     var cursor_index = self.getCursorPositionIndex();
 
     //at beginning of file
-    if (cursor_index == 0) {
-        return;
-    }
+    if (cursor_index == 0) return;
 
     //delete new line
     if (self.cursor_position.x == 0 and self.cursor_position.y != 0) {
-        const new_line_seq = ControlSequence.new_line.getValue().?;
-        const new_x_pos = intCast(i32, self.getLineAtRow(self.cursor_position.y - 1).len);
-        for (0..new_line_seq.len) |_| {
+        for (0..new_line_sequence.len) |_| {
             _ = self.text_buffer.orderedRemove(cursor_index - 1);
-            self.moveCursor(.{ .x = -1, .y = 0 });
             cursor_index -= 1;
         }
-        self.cursor_position.x = new_x_pos;
+        self.cursor_position = self.getCursorPositionFromIndex(cursor_index) catch return Error.FailedToRemoveFromBuffer;
         return;
     }
 
@@ -379,12 +399,43 @@ test "Remove char" {
     try testing.expectEqualStrings("1", t.getLineAtRow(0));
     try testing.expectEqualStrings("23", t.getLineAtRow(1));
 
-    t.deleteAtCursorPosition();
+    try t.deleteAtCursorPosition();
 
     try testing.expectEqualStrings("2", t.getLineAtRow(1));
     try testing.expectEqual(1, t.getLineAtRow(1).len);
 
-    t.deleteAtCursorPosition();
-    t.deleteAtCursorPosition();
+    try t.deleteAtCursorPosition();
+    try t.deleteAtCursorPosition();
     try testing.expectEqualDeep(Vec2{ .x = 1, .y = 0 }, t.cursor_position);
+}
+
+test "Cursor Postion Index" {
+    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    defer t.deinit();
+
+    try t.text_buffer.appendSlice(std.testing.allocator, "abcde" ++ new_line_sequence);
+    try t.text_buffer.appendSlice(std.testing.allocator, "fg" ++ new_line_sequence);
+    try t.text_buffer.appendSlice(std.testing.allocator, new_line_sequence);
+    try t.text_buffer.appendSlice(std.testing.allocator, "hijk" ++ new_line_sequence);
+    try t.text_buffer.appendSlice(std.testing.allocator, "lm");
+
+    t.cursor_position = Vec2.ZERO;
+    var position = try t.getCursorPositionFromIndex(t.getCursorPositionIndex());
+    try testing.expectEqualDeep(t.cursor_position, position);
+
+    t.cursor_position = .{ .x = 0, .y = 1 };
+    position = try t.getCursorPositionFromIndex(t.getCursorPositionIndex());
+    try testing.expectEqualDeep(t.cursor_position, position);
+
+    t.cursor_position = .{ .x = 2, .y = 0 };
+    position = try t.getCursorPositionFromIndex(t.getCursorPositionIndex());
+    try testing.expectEqualDeep(t.cursor_position, position);
+
+    t.cursor_position = .{ .x = 1, .y = 4 };
+    position = try t.getCursorPositionFromIndex(t.getCursorPositionIndex());
+    try testing.expectEqualDeep(t.cursor_position, position);
+
+    t.cursor_position = .{ .x = 0, .y = 2 };
+    position = try t.getCursorPositionFromIndex(t.getCursorPositionIndex());
+    try testing.expectEqualDeep(t.cursor_position, position);
 }

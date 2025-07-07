@@ -39,7 +39,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2) Allocator.Error!Page {
     const bottom_bar1 = try renderables.Ribbon.init(
         alloc,
         intCast(usize, dimensions.x),
-        &.{"This is test bottom ribbon 1"},
+        &.{""},
     );
 
     const bottom_bar2 = try renderables.Ribbon.init(
@@ -110,5 +110,6 @@ pub fn deinit(self: *Page) void {
     self.text_window.deinit();
     self.bottom_bar1.deinit();
     self.bottom_bar2.deinit();
+    self.bottom_bar3.deinit();
     self.top_bar.deinit();
 }

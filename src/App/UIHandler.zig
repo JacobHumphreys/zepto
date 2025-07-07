@@ -1,5 +1,6 @@
 //! Handles ui rendering and processing of input events at a high level.
 const std = @import("std");
+const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
@@ -28,10 +29,9 @@ pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || ui.Error)!UI
     var page_elements = try page.getElements(alloc);
 
     try rendering.reRenderOutput(page_elements.items, dimensions, alloc);
-    try rendering.renderCursorFromGlobalSpace(.{
-        .x = 0,
-        .y = intCast(i32, page.cursor_parent),
-    });
+
+    const cursor_parent = page_elements.items[page.cursor_parent];
+    try rendering.renderCursor(cursor_parent);
 
     page_elements.deinit(alloc);
 
@@ -79,9 +79,10 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.E
         return;
     };
     defer page_elements.deinit(self.alloc);
+
     switch (sequence) {
         .backspace => {
-            self.current_page.text_window.deleteAtCursorPosition();
+            try self.current_page.text_window.deleteAtCursorPosition();
             try rendering.reRenderOutput(
                 page_elements.items,
                 self.current_page.dimensions,
@@ -94,8 +95,14 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.E
 
         .new_line => {
             try self.current_page.text_window.addSequenceToBuffer(sequence);
+
+            const old_y_pos = self.current_page.text_window.cursor_position.y;
+
             self.current_page.text_window.cursor_position.x = 0;
             self.current_page.text_window.moveCursor(.{ .x = 0, .y = 1 });
+
+            assert(old_y_pos + 1 == self.current_page.text_window.cursor_position.y);
+
             try rendering.reRenderOutput(
                 page_elements.items,
                 self.current_page.dimensions,
@@ -143,17 +150,4 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.E
 
         .unknown => return,
     }
-}
-
-test "mem test" {
-    //    const alloc = std.testing.allocator;
-    //    var ui_handler = try UIHandler.init(alloc, .{ .x = 100, .y = 100 });
-    //
-    //    try std.testing.expectError(
-    //        Signal.Exit,
-    //        ui_handler.processEvent(
-    //            InputEvent{ .control = .exit },
-    //        ),
-    //    );
-    //    defer ui_handler.deinit();
 }

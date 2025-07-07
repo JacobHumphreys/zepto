@@ -65,7 +65,7 @@ pub fn renderCursor(current_window: RenderElement) Error!void {
 }
 
 ///Uses terminal codes to set rendered cursor position based on window state
-pub fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
+fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
     var write_buf: [32]u8 = undefined;
     const screen_space_position = getScreenSpaceCursorPosition(cursor_position);
     const cursor_move =
