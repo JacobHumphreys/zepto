@@ -22,6 +22,7 @@ current_page: Page,
 alloc: Allocator,
 
 pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || ui.Error)!UIHandler {
+    //#TODO Enter alt screen.
     try rendering.clearScreen();
 
     var page = try Page.init(alloc, dimensions);
@@ -43,6 +44,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || ui.Error)!UI
 
 pub fn deinit(self: *UIHandler) void {
     self.current_page.deinit();
+    //#Todo exit alt screen
 }
 
 pub fn processEvent(self: *UIHandler, event: InputEvent) (ui.Error || Signal)!void {
