@@ -14,18 +14,18 @@ const intCast = lib.casts.intCast;
 
 const ui = @import("ui.zig");
 const rendering = ui.rendering;
-const Page = ui.Page;
+const MainPage = ui.MainPage;
 
 const UIHandler = @This();
 
-current_page: Page,
+current_page: MainPage,
 alloc: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2) (Allocator.Error || ui.Error)!UIHandler {
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer) (Allocator.Error || ui.Error)!UIHandler {
     //#TODO Enter alt screen.
     try rendering.clearScreen();
 
-    var page = try Page.init(alloc, dimensions);
+    var page = try MainPage.init(alloc, dimensions, buffer);
 
     var page_elements = try page.getElements(alloc);
 
@@ -150,6 +150,6 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (ui.E
             return rendering.renderCursor(page_elements.items[self.current_page.cursor_parent]);
         },
 
-        .unknown => return,
+        else => return,
     }
 }

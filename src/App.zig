@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const log = std.log;
-const File = std.fs.File;
 const Allocator = std.mem.Allocator;
 
 const Terminal = @import("App/Terminal.zig");
@@ -9,20 +8,36 @@ const Signal = @import("lib").types.Signal;
 const input = @import("App/input.zig");
 const UIHandler = @import("App/UIHandler.zig");
 
+const files = @import("App/files.zig");
+
+const Buffer = @import("lib").types.Buffer;
+
 const App = @This();
 
 terminal: Terminal,
 ui_handler: UIHandler,
+alloc: Allocator,
 
-pub fn init(alloc: Allocator) !App {
+pub fn init(alloc: Allocator, path: ?[]const u8) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
     const window_dimensions = Terminal.getWindowSize();
-    const ui_handler = try UIHandler.init(alloc, window_dimensions);
+
+    const buffer = if (path) |p|
+        try files.importFileData(alloc, p)
+    else
+        Buffer.init(alloc);
+
+    const ui_handler = try UIHandler.init(
+        alloc,
+        window_dimensions,
+        buffer,
+    );
 
     return App{
         .terminal = terminal,
         .ui_handler = ui_handler,
+        .alloc = alloc,
     };
 }
 

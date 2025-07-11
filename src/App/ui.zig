@@ -1,4 +1,4 @@
-pub const Page = @import("ui/Page.zig");
+pub const MainPage = @import("ui/MainPage.zig");
 const renderables = @import("ui/renderables.zig");
 pub const rendering = @import("ui/rendering.zig");
 

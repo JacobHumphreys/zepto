@@ -1,18 +1,14 @@
 const std = @import("std");
 const io = std.io;
-const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
-const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
-const File = std.fs.File;
 
 const lib = @import("lib");
 const intCast = lib.casts.intCast;
-const Renderable = lib.interfaces.Renderable;
 const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.input.ControlSequence;
 
-const RenderElement = @import("RenderElement.zig");
+const RenderElement = lib.types.RenderElement;
 
 pub const Error = error{
     FailedToClearScreen,
@@ -20,12 +16,10 @@ pub const Error = error{
     FailedToWriteOutput,
 };
 
-var std_out: File = io.getStdOut();
+var std_out = io.getStdOut();
 
 ///Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(elements: []RenderElement, dimensions: Vec2, alloc: Allocator) Error!void {
-    try clearScreen();
-
     const screen_buffer = alloc.alloc(u8, intCast(usize, dimensions.x * dimensions.y)) catch {
         return Error.FailedToWriteOutput;
     };
@@ -50,7 +44,10 @@ pub fn reRenderOutput(elements: []RenderElement, dimensions: Vec2, alloc: Alloca
             element_output,
         );
     }
-    std_out.writer().print("{s}", .{screen_buffer}) catch {
+    std_out.writer().print(
+        "{s}{s}",
+        .{ ControlSequence.getValue(.clear_screen).?, screen_buffer },
+    ) catch {
         return Error.FailedToWriteOutput;
     };
 }
@@ -91,11 +88,10 @@ fn getScreenSpaceCursorPosition(internal_position: Vec2) Vec2 {
 }
 
 pub fn clearScreen() Error!void {
-    const clear_screen = [1]u8{control_code.esc} ++ "[2J";
-    const move_cursor_to_home = [1]u8{control_code.esc} ++ "[H";
+    const clear_screen = ControlSequence.getValue(.clear_screen).?;
     std_out.writer().print(
         "{s}",
-        .{clear_screen ++ move_cursor_to_home},
+        .{clear_screen},
     ) catch {
         return Error.FailedToClearScreen;
     };

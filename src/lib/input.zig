@@ -17,10 +17,12 @@ pub const ControlSequence = enum {
     down,
     backspace,
     exit,
+    clear_screen,
     unknown,
 
     const OutputSequenceMap = EnumMap(ControlSequence, []const u8).init(.{
-        .new_line = "\r\n",
+        .new_line = "\n",
+        .clear_screen = [_]u8{std.ascii.control_code.esc} ++ "[2J" ++ [1]u8{control_code.esc} ++ "[H",
     });
 
     pub fn getValue(key: ControlSequence) ?[]const u8 {
@@ -45,4 +47,3 @@ const KeyCode = struct {
     const up = .{control_code.esc} ++ "[A";
     const down = .{control_code.esc} ++ "[B";
 };
-

@@ -12,41 +12,38 @@ const CursorContainer = lib.interfaces.CursorContainer;
 const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.input.ControlSequence;
 const intCast = lib.casts.intCast;
+const Buffer = lib.types.Buffer;
 
 const TextWindow = @This();
 
-pub const Error = error{
-    FailedToAppendToBuffer,
-    FailedToRemoveFromBuffer,
+pub const Error = (error{
     NoSequenceValue,
-};
+} || Buffer.Error);
 
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
 cursor_position: Vec2,
 dimensions: Vec2,
-text_buffer: ArrayList(u8), //one dimensional because of how annoying newlines are
+buffer: Buffer, //one dimensional because of how annoying newlines are
 allocator: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2) TextWindow {
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) TextWindow {
     return TextWindow{
         .cursor_position = .{ .x = 0, .y = 0 },
         .dimensions = dimensions,
-        .text_buffer = .empty,
+        .buffer = buffer,
         .allocator = alloc,
     };
 }
 
 pub fn deinit(self: *TextWindow) void {
-    self.text_buffer.deinit(self.allocator);
+    self.buffer.deinit();
 }
 
 ///Adds char to input buffer at cursor position and moves cursor foreward
 pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
     const cursor_position = self.getCursorPositionIndex();
-    self.text_buffer.insert(self.allocator, cursor_position, char) catch {
-        return Error.FailedToAppendToBuffer;
-    };
+    try self.buffer.appendCharAtPosition(cursor_position, char);
     self.moveCursor(.{ .x = 1, .y = 0 });
 }
 
@@ -54,17 +51,15 @@ pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
 pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!void {
     const sequence_text = sequence.getValue() orelse return Error.NoSequenceValue;
     const cursor_position = self.getCursorPositionIndex();
-    self.text_buffer.insertSlice(self.allocator, cursor_position, sequence_text) catch {
-        return Error.FailedToAppendToBuffer;
-    };
+    try self.buffer.appendSliceAtPosition(cursor_position, sequence_text);
     self.moveCursor(Vec2{ .x = intCast(i32, sequence_text.len), .y = 0 });
 }
 
 /// Returns the position of the cursor
 fn getCursorPositionIndex(self: TextWindow) usize {
-    var line_sep_list = self.getLineSepperatedList() catch |err| {
+    var line_sep_list = self.buffer.getLineSepperatedList(self.allocator) catch |err| {
         log.err("Could not get line sep list {any}", .{err});
-        return self.text_buffer.items.len;
+        return self.buffer.data.items.len;
     };
     defer line_sep_list.deinit(self.allocator);
 
@@ -90,11 +85,11 @@ fn getCursorPositionIndex(self: TextWindow) usize {
 
 /// From an index within text_buffer returns the cursor position.
 fn getCursorPositionFromIndex(self: TextWindow, index: usize) !Vec2 {
-    assert(self.text_buffer.items.len >= index);
+    assert(self.buffer.data.items.len >= index);
 
     var position = Vec2.ZERO;
 
-    var line_sep_list = try self.getLineSepperatedList();
+    var line_sep_list = try self.buffer.getLineSepperatedList(self.allocator);
     defer line_sep_list.deinit(self.allocator);
 
     var current_index: usize = 0;
@@ -114,26 +109,8 @@ fn getCursorPositionFromIndex(self: TextWindow, index: usize) !Vec2 {
     return position;
 }
 
-/// Allocates new arraylist using the structs internal allocator of the text buffer's lines,
-/// not including line breaks; Adds an empty line to the end if newline is final
-fn getLineSepperatedList(self: TextWindow) Allocator.Error!ArrayList([]u8) {
-    var line_sep_list: ArrayList([]u8) = .empty;
-    var buffer_window = self.text_buffer.items;
-
-    while (mem.indexOf(u8, buffer_window, new_line_sequence)) |new_line_index| {
-        try line_sep_list.append(self.allocator, buffer_window[0..new_line_index]);
-        buffer_window = buffer_window[new_line_index + new_line_sequence.len ..];
-    }
-
-    // If buffer_window is empty allows cursor to be moved to empty new line.
-    // else adds rest of buffer to new line
-    try line_sep_list.append(self.allocator, buffer_window);
-
-    return line_sep_list;
-}
-
 pub fn moveCursor(self: *TextWindow, offset: Vec2) void {
-    var line_sep_list = self.getLineSepperatedList() catch |err| {
+    var line_sep_list = self.buffer.getLineSepperatedList(self.allocator) catch |err| {
         log.err("Could not get line sep list {any}", .{err});
         return;
     };
@@ -177,7 +154,7 @@ pub fn deleteAtCursorPosition(self: *TextWindow) Error!void {
     //delete new line
     if (self.cursor_position.x == 0 and self.cursor_position.y != 0) {
         for (0..new_line_sequence.len) |_| {
-            _ = self.text_buffer.orderedRemove(cursor_index - 1);
+            _ = self.buffer.data.orderedRemove(cursor_index - 1);
             cursor_index -= 1;
         }
         self.cursor_position = self.getCursorPositionFromIndex(cursor_index) catch return Error.FailedToRemoveFromBuffer;
@@ -185,14 +162,14 @@ pub fn deleteAtCursorPosition(self: *TextWindow) Error!void {
     }
 
     //regular char delete
-    _ = self.text_buffer.orderedRemove(cursor_index - 1);
+    _ = self.buffer.data.orderedRemove(cursor_index - 1);
     self.moveCursor(.{ .x = -1, .y = 0 });
 }
 
 fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
-    const row_count = mem.count(u8, self.text_buffer.items, new_line_sequence) + 1;
+    const row_count = mem.count(u8, self.buffer.data.items, new_line_sequence) + 1;
 
-    var line_iter = mem.splitSequence(u8, self.text_buffer.items, new_line_sequence);
+    var line_iter = mem.splitSequence(u8, self.buffer.data.items, new_line_sequence);
     std.debug.assert(row <= row_count);
     for (0..row_count) |curr_row| {
         const line = line_iter.next();
@@ -229,7 +206,7 @@ pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 
         .y = @divTrunc(self.cursor_position.y, self.dimensions.y),
     };
 
-    var line_sep_list = try self.getLineSepperatedList();
+    var line_sep_list = try self.buffer.getLineSepperatedList(self.allocator);
     defer line_sep_list.deinit(self.allocator);
 
     const lower_bound = Vec2{
