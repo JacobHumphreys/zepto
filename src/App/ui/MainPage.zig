@@ -2,15 +2,16 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 
-const Page = @This();
+const MainPage = @This();
 
 const renderables = @import("renderables.zig");
 
 const lib = @import("lib");
 const Vec2 = lib.types.Vec2;
+const Buffer = lib.types.Buffer;
 const intCast = lib.casts.intCast;
 
-const RenderElement = @import("RenderElement.zig");
+const RenderElement = lib.types.RenderElement;
 
 dimensions: Vec2,
 
@@ -23,7 +24,7 @@ bottom_bar3: renderables.Ribbon,
 
 cursor_parent: usize,
 
-pub fn init(alloc: Allocator, dimensions: Vec2) Allocator.Error!Page {
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!MainPage {
     const top_bar = try renderables.Ribbon.init(
         alloc,
         intCast(usize, dimensions.x),
@@ -32,7 +33,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2) Allocator.Error!Page {
 
     const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
 
-    const text_window = renderables.TextWindow.init(alloc, window_dimensions);
+    const text_window = renderables.TextWindow.init(alloc, window_dimensions, buffer);
 
     const spacer = renderables.Spacer.init(intCast(usize, dimensions.x));
 
@@ -54,7 +55,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2) Allocator.Error!Page {
         &.{"This is a test bottom ribbon 3"},
     );
 
-    return Page{
+    return MainPage{
         .dimensions = dimensions,
         .top_bar = top_bar,
         .top_spacer = spacer,
@@ -66,7 +67,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2) Allocator.Error!Page {
     };
 }
 
-pub fn getElements(self: *Page, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {
+pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {
     var element_list = try ArrayList(RenderElement).initCapacity(alloc, 6);
     element_list.appendSliceAssumeCapacity(
         &.{
@@ -106,7 +107,7 @@ pub fn getElements(self: *Page, alloc: Allocator) Allocator.Error!ArrayList(Rend
     return element_list;
 }
 
-pub fn deinit(self: *Page) void {
+pub fn deinit(self: *MainPage) void {
     self.text_window.deinit();
     self.bottom_bar1.deinit();
     self.bottom_bar2.deinit();
