@@ -8,7 +8,7 @@ pub const InputEvent = union(enum) {
     control: ControlSequence,
 };
 
-//essentially just a tagged union but using an internal enum map because strings
+// Essentially just a tagged union but using an internal enum map because strings
 pub const ControlSequence = enum {
     new_line,
     left,
@@ -25,8 +25,8 @@ pub const ControlSequence = enum {
     const OutputSequenceMap = EnumMap(ControlSequence, []const u8).init(.{
         .new_line = "\n",
         .clear_screen = [_]u8{std.ascii.control_code.esc} ++ "[2J" ++ [1]u8{control_code.esc} ++ "[H",
-    .enter_alt_screen = [_]u8{std.ascii.control_code.esc} ++ "[?1049h",
-    .exit_alt_screen =  [_]u8{std.ascii.control_code.esc} ++ "[?1049l"
+        .enter_alt_screen = [_]u8{std.ascii.control_code.esc} ++ "[?1049h",
+        .exit_alt_screen = [_]u8{std.ascii.control_code.esc} ++ "[?1049l",
     });
 
     pub fn getValue(key: ControlSequence) ?[]const u8 {
