@@ -10,7 +10,7 @@ const lib = @import("lib");
 const Stringable = lib.interfaces.Stringable;
 const CursorContainer = lib.interfaces.CursorContainer;
 const Vec2 = lib.types.Vec2;
-const ControlSequence = lib.input.ControlSequence;
+const ControlSequence = lib.types.input.ControlSequence;
 const intCast = lib.casts.intCast;
 const Buffer = lib.types.Buffer;
 

@@ -6,7 +6,7 @@ const Allocator = std.mem.Allocator;
 const lib = @import("lib");
 const intCast = lib.casts.intCast;
 const Vec2 = lib.types.Vec2;
-const ControlSequence = lib.input.ControlSequence;
+const ControlSequence = lib.types.input.ControlSequence;
 
 const RenderElement = lib.types.RenderElement;
 
@@ -14,11 +14,13 @@ pub const Error = error{
     FailedToClearScreen,
     FailedToMoveCursor,
     FailedToWriteOutput,
+    FailedToEnterAltView,
+    FailedToExitAltView,
 };
 
 var std_out = io.getStdOut();
 
-///Causes full page redraw line by line. ReRenders text and cursor
+/// Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(elements: []RenderElement, dimensions: Vec2, alloc: Allocator) Error!void {
     const screen_buffer = alloc.alloc(u8, intCast(usize, dimensions.x * dimensions.y)) catch {
         return Error.FailedToWriteOutput;
@@ -61,7 +63,7 @@ pub fn renderCursor(current_window: RenderElement) Error!void {
     );
 }
 
-///Uses terminal codes to set rendered cursor position based on window state
+/// Uses terminal codes to set rendered cursor position based on window state
 fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
     var write_buf: [32]u8 = undefined;
     const screen_space_position = getScreenSpaceCursorPosition(cursor_position);
@@ -78,8 +80,8 @@ fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
     };
 }
 
-///Internal Cursor Position is stored using array index coordingates this converts it to terminal
-///cursor coordinates (1 to window size).
+/// Internal Cursor Position is stored using array index coordingates this converts it to terminal
+/// cursor coordinates (1 to window size).
 fn getScreenSpaceCursorPosition(internal_position: Vec2) Vec2 {
     var new_position = internal_position;
     new_position.x += 1;
@@ -94,5 +96,25 @@ pub fn clearScreen() Error!void {
         .{clear_screen},
     ) catch {
         return Error.FailedToClearScreen;
+    };
+}
+
+pub fn enterAltScreen() !void {
+    const enter_screen = ControlSequence.enter_alt_screen.getValue().?;
+    std_out.writer().print(
+        "{s}",
+        .{enter_screen},
+    ) catch {
+        return Error.FailedToEnterAltView;
+    };
+}
+
+pub fn exitAltScreen() !void {
+    const exit_screen = ControlSequence.exit_alt_screen.getValue().?;
+    std_out.writer().print(
+        "{s}",
+        .{exit_screen},
+    ) catch {
+        return Error.FailedToExitAltView;
     };
 }

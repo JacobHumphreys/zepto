@@ -4,7 +4,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 
 const intCast = @import("../casts.zig").intCast;
-const ControlSequence = @import("../input.zig").ControlSequence;
+const ControlSequence = @import("input.zig").ControlSequence;
 const Vec2 = @import("Vec2.zig");
 
 const Buffer = @This();

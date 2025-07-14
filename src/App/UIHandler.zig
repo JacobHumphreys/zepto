@@ -7,9 +7,9 @@ const ArrayList = std.ArrayListUnmanaged;
 
 const lib = @import("lib");
 const Vec2 = lib.types.Vec2;
-const InputEvent = lib.input.InputEvent;
+const InputEvent = lib.types.input.InputEvent;
 const Signal = lib.types.Signal;
-const ControlSequence = lib.input.ControlSequence;
+const ControlSequence = lib.types.input.ControlSequence;
 const intCast = lib.casts.intCast;
 
 const ui = @import("ui.zig");
@@ -23,6 +23,7 @@ alloc: Allocator,
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer) (Allocator.Error || ui.Error)!UIHandler {
     //#TODO Enter alt screen.
+    try rendering.enterAltScreen();
     try rendering.clearScreen();
 
     var page = try MainPage.init(alloc, dimensions, buffer);
@@ -43,6 +44,9 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer) (Alloc
 }
 
 pub fn deinit(self: *UIHandler) void {
+    rendering.exitAltScreen() catch |err| {
+        std.log.err("{any}", .{err});
+    };
     self.current_page.deinit();
     //#Todo exit alt screen
 }
