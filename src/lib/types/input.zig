@@ -20,6 +20,8 @@ pub const ControlSequence = enum {
     clear_screen,
     enter_alt_screen,
     exit_alt_screen,
+    show_cursor,
+    hide_cursor,
     unknown,
 
     const OutputSequenceMap = EnumMap(ControlSequence, []const u8).init(.{
@@ -27,6 +29,8 @@ pub const ControlSequence = enum {
         .clear_screen = [_]u8{std.ascii.control_code.esc} ++ "[2J" ++ [1]u8{control_code.esc} ++ "[H",
         .enter_alt_screen = [_]u8{std.ascii.control_code.esc} ++ "[?1049h",
         .exit_alt_screen = [_]u8{std.ascii.control_code.esc} ++ "[?1049l",
+        .hide_cursor = [_]u8{std.ascii.control_code.esc} ++ "[?25l",
+        .show_cursor = [_]u8{std.ascii.control_code.esc} ++ "[?25h",
     });
 
     pub fn getValue(key: ControlSequence) ?[]const u8 {

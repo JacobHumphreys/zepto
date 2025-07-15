@@ -7,6 +7,6 @@ const CursorContainer = interfaces.CursorContainer;
 const Vec2 = @import("Vec2.zig");
 
 stringable: Stringable,
-cursorContainer: ?CursorContainer = null,
+cursor_container: ?CursorContainer = null,
 position: Vec2,
 is_visible: bool,

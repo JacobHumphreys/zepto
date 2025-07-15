@@ -41,6 +41,11 @@ pub fn init(alloc: Allocator, path: ?[]const u8) !App {
     };
 }
 
+pub fn deinit(self: *App) !void {
+    self.ui_handler.deinit();
+    try self.terminal.disableRawMode();
+}
+
 pub fn run(self: *App) Signal!void {
     self.ui_handler.setOutputDimensions(Terminal.getWindowSize());
 
@@ -51,15 +56,16 @@ pub fn run(self: *App) Signal!void {
     };
 
     self.ui_handler.processEvent(event) catch |err| switch (err) {
+        Signal.SaveBuffer => {
+            files.exportFileData(self.ui_handler.getCurrentBuffer(), self.alloc) catch {
+                log.err("Could Not Export File Data", .{});
+            };
+            return Signal.Exit;
+        },
         Signal.Exit => return Signal.Exit,
         else => {
             log.err("{any}", .{err});
             return Signal.Exit;
         },
     };
-}
-
-pub fn deinit(self: *App) !void {
-    self.ui_handler.deinit();
-    try self.terminal.disableRawMode();
 }

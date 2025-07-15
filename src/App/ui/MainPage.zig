@@ -7,11 +7,13 @@ const MainPage = @This();
 const renderables = @import("renderables.zig");
 
 const lib = @import("lib");
+const Page = lib.interfaces.Page;
 const Vec2 = lib.types.Vec2;
 const Buffer = lib.types.Buffer;
+const RenderElement = lib.types.RenderElement;
 const intCast = lib.casts.intCast;
 
-const RenderElement = lib.types.RenderElement;
+const CursorContainer = lib.interfaces.CursorContainer;
 
 dimensions: Vec2,
 
@@ -67,6 +69,14 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
     };
 }
 
+pub fn deinit(self: *MainPage) void {
+    self.text_window.deinit();
+    self.bottom_bar1.deinit();
+    self.bottom_bar2.deinit();
+    self.bottom_bar3.deinit();
+    self.top_bar.deinit();
+}
+
 pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {
     var element_list = try ArrayList(RenderElement).initCapacity(alloc, 6);
     element_list.appendSliceAssumeCapacity(
@@ -83,7 +93,7 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
             },
             RenderElement{
                 .stringable = self.text_window.stringable(),
-                .cursorContainer = self.text_window.cursorContainer(),
+                .cursor_container = self.text_window.cursorContainer(),
                 .is_visible = true,
                 .position = .{ .x = 0, .y = 2 },
             },
@@ -107,10 +117,26 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
     return element_list;
 }
 
-pub fn deinit(self: *MainPage) void {
-    self.text_window.deinit();
-    self.bottom_bar1.deinit();
-    self.bottom_bar2.deinit();
-    self.bottom_bar3.deinit();
-    self.top_bar.deinit();
+pub fn getCursorParent(self: *MainPage) Allocator.Error!RenderElement {
+    var allocation_buffer: [512]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&allocation_buffer);
+    const alloc = fba.allocator();
+
+    var elements = try self.getElements(alloc);
+    defer elements.deinit(alloc);
+    const cursor_parent = elements.items[self.cursor_parent];
+
+    return cursor_parent;
+}
+
+pub fn getCurrentBuffer(self: *MainPage) Buffer {
+    return self.text_window.buffer;
+}
+
+pub fn getDimensions(self: *MainPage) Vec2 {
+    return self.dimensions;
+}
+
+pub fn page(self: *MainPage) Page {
+    return Page.from(self);
 }

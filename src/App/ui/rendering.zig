@@ -7,6 +7,8 @@ const lib = @import("lib");
 const intCast = lib.casts.intCast;
 const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.types.input.ControlSequence;
+const CursorContainer = lib.interfaces.CursorContainer;
+const Page = lib.interfaces.Page;
 
 const RenderElement = lib.types.RenderElement;
 
@@ -21,19 +23,23 @@ pub const Error = error{
 var std_out = io.getStdOut();
 
 /// Causes full page redraw line by line. ReRenders text and cursor
-pub fn reRenderOutput(elements: []RenderElement, dimensions: Vec2, alloc: Allocator) Error!void {
-    const screen_buffer = alloc.alloc(u8, intCast(usize, dimensions.x * dimensions.y)) catch {
+pub fn reRenderOutput(page: Page, alloc: Allocator) Error!void {
+    const page_dimensions = page.getDimensions();
+    const screen_buffer = alloc.alloc(u8, intCast(usize, page_dimensions.x * page_dimensions.y)) catch {
         return Error.FailedToWriteOutput;
     };
     defer alloc.free(screen_buffer);
     @memset(screen_buffer, ' ');
 
-    for (elements) |element| {
+    var page_elements = page.getElements(alloc) catch return Error.FailedToWriteOutput;
+    defer page_elements.deinit(alloc);
+
+    for (page_elements.items) |element| {
         if (!element.is_visible) continue;
 
         const position_index = intCast(
             usize,
-            element.position.y * dimensions.x + element.position.x,
+            element.position.y * page_dimensions.x + element.position.x,
         );
 
         const element_output = element.stringable.toString(alloc) catch {
@@ -47,8 +53,12 @@ pub fn reRenderOutput(elements: []RenderElement, dimensions: Vec2, alloc: Alloca
         );
     }
     std_out.writer().print(
-        "{s}{s}",
-        .{ ControlSequence.getValue(.clear_screen).?, screen_buffer },
+        "{s}{s}{s}",
+        .{
+            ControlSequence.getValue(.hide_cursor).?,
+            ControlSequence.getValue(.clear_screen).?,
+            screen_buffer,
+        },
     ) catch {
         return Error.FailedToWriteOutput;
     };
@@ -56,10 +66,10 @@ pub fn reRenderOutput(elements: []RenderElement, dimensions: Vec2, alloc: Alloca
 
 /// Moves cursor to the screen-space position cooresponding to
 /// the Global space position provided by the CursorContainer
-pub fn renderCursor(current_window: RenderElement) Error!void {
-    const cursor_position = current_window.cursorContainer.?.getCursorPosition();
+pub fn renderCursor(cursor_parent: RenderElement) Error!void {
+    const cursor_position = cursor_parent.cursor_container.?.getCursorPosition();
     return renderCursorFromGlobalSpace(
-        cursor_position.add(current_window.position),
+        cursor_position.add(cursor_parent.position),
     );
 }
 
@@ -70,8 +80,13 @@ fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
     const cursor_move =
         std.fmt.bufPrint(
             &write_buf,
-            "{c}[{};{}H",
-            .{ control_code.esc, screen_space_position.y, screen_space_position.x },
+            "{c}[{};{}H{s}",
+            .{
+                control_code.esc,
+                screen_space_position.y,
+                screen_space_position.x,
+                ControlSequence.getValue(.show_cursor).?,
+            },
         ) catch {
             return Error.FailedToMoveCursor;
         };

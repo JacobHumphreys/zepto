@@ -254,14 +254,16 @@ pub inline fn getCursorPosition(self: *TextWindow) Vec2 {
 }
 
 test "MemTest" {
-    var t = TextWindow.init(std.testing.allocator, .{ .x = 100, .y = 100 });
+    const alloc = std.testing.allocator;
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
     defer t.deinit();
     try t.addCharToBuffer('3');
     try t.addSequenceToBuffer(.new_line);
 }
 
 test "get cursor index" {
-    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    const alloc = std.testing.allocator;
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
 
     //single char insertion
     try testing.expectEqual(0, t.getCursorPositionIndex());
@@ -280,13 +282,14 @@ test "get cursor index" {
 
     try t.addSequenceToBuffer(.new_line);
     t.moveCursor(Vec2{ .x = 0, .y = 1 });
-    try testing.expectEqual(3, t.getCursorPositionIndex());
+    try testing.expectEqual(2, t.getCursorPositionIndex());
 
     t.deinit();
 }
 
 test "inserting" {
-    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    const alloc = std.testing.allocator;
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
     defer t.deinit();
 
     try t.addCharToBuffer('1');
@@ -301,11 +304,12 @@ test "inserting" {
     t.moveCursor(.{ .x = 0, .y = 1 });
     t.cursor_position.x = 0;
 
-    try testing.expectEqualStrings("1\r\n2\r\n", t.text_buffer.items);
+    try testing.expectEqualStrings("1\n2\n", t.buffer.data.items);
 }
 
 test "line sepperation" {
-    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    const alloc = std.testing.allocator;
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
     defer t.deinit();
 
     try t.addCharToBuffer('1');
@@ -323,7 +327,7 @@ test "line sepperation" {
     try t.addCharToBuffer('3');
     try t.addCharToBuffer('4');
 
-    var line_sep_list = try t.getLineSepperatedList();
+    var line_sep_list = try t.buffer.getLineSepperatedList(alloc);
     defer line_sep_list.deinit(t.allocator);
 
     //line count
@@ -341,7 +345,8 @@ test "line sepperation" {
 }
 
 test "line peek" {
-    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    const alloc = std.testing.allocator;
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
     defer t.deinit();
 
     try t.addCharToBuffer('1');
@@ -360,7 +365,8 @@ test "line peek" {
 }
 
 test "Remove char" {
-    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    const alloc = std.testing.allocator;
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
     defer t.deinit();
 
     try t.addCharToBuffer('1');
@@ -387,14 +393,15 @@ test "Remove char" {
 }
 
 test "Cursor Postion Index" {
-    var t = TextWindow.init(std.testing.allocator, Vec2{ .x = 100, .y = 100 });
+    const alloc = std.testing.allocator;
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
     defer t.deinit();
 
-    try t.text_buffer.appendSlice(std.testing.allocator, "abcde" ++ new_line_sequence);
-    try t.text_buffer.appendSlice(std.testing.allocator, "fg" ++ new_line_sequence);
-    try t.text_buffer.appendSlice(std.testing.allocator, new_line_sequence);
-    try t.text_buffer.appendSlice(std.testing.allocator, "hijk" ++ new_line_sequence);
-    try t.text_buffer.appendSlice(std.testing.allocator, "lm");
+    try t.buffer.data.appendSlice(alloc, "abcde" ++ new_line_sequence);
+    try t.buffer.data.appendSlice(alloc, "fg" ++ new_line_sequence);
+    try t.buffer.data.appendSlice(alloc, new_line_sequence);
+    try t.buffer.data.appendSlice(alloc, "hijk" ++ new_line_sequence);
+    try t.buffer.data.appendSlice(alloc, "lm");
 
     t.cursor_position = Vec2.ZERO;
     var position = try t.getCursorPositionFromIndex(t.getCursorPositionIndex());

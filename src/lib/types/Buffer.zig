@@ -10,6 +10,7 @@ const Vec2 = @import("Vec2.zig");
 const Buffer = @This();
 
 data: ArrayList(u8),
+target_path: ?[]const u8 = null,
 alloc: Allocator,
 
 pub const Error = error{
