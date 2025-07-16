@@ -1,78 +1,92 @@
 const std = @import("std");
 const io = std.io;
-const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
-const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
-const File = std.fs.File;
 
 const lib = @import("lib");
 const intCast = lib.casts.intCast;
-const Renderable = lib.interfaces.Renderable;
 const Vec2 = lib.types.Vec2;
-const ControlSequence = lib.input.ControlSequence;
+const ControlSequence = lib.types.input.ControlSequence;
+const CursorContainer = lib.interfaces.CursorContainer;
+const Page = lib.interfaces.Page;
 
-const RenderElement = @import("RenderElement.zig");
+const RenderElement = lib.types.RenderElement;
 
 pub const Error = error{
     FailedToClearScreen,
     FailedToMoveCursor,
     FailedToWriteOutput,
+    FailedToEnterAltView,
+    FailedToExitAltView,
 };
 
-var std_out: File = io.getStdOut();
+var std_out = io.getStdOut();
 
-///Causes full page redraw line by line. ReRenders text and cursor
-pub fn reRenderOutput(elements: []RenderElement, dimensions: Vec2, alloc: Allocator) Error!void {
-    try clearScreen();
-
-    const screen_buffer = alloc.alloc(u8, intCast(usize, dimensions.x * dimensions.y)) catch {
+/// Causes full page redraw line by line. ReRenders text and cursor
+pub fn reRenderOutput(page: Page, alloc: Allocator) Error!void {
+    const page_dimensions = page.getDimensions();
+    const screen_buffer = alloc.alloc(u8, intCast(usize, 2 * page_dimensions.x * page_dimensions.y)) catch {
         return Error.FailedToWriteOutput;
     };
     defer alloc.free(screen_buffer);
     @memset(screen_buffer, ' ');
 
-    for (elements) |element| {
-        if (!element.is_visible) continue;
+    var page_elements = page.getElements(alloc) catch return Error.FailedToWriteOutput;
+    defer page_elements.deinit(alloc);
 
-        const position_index = intCast(
-            usize,
-            element.position.y * dimensions.x + element.position.x,
-        );
-
+    var output_width: usize = 0;
+    var pos_index: usize = 0;
+    for (page_elements.items) |element| {
         const element_output = element.stringable.toString(alloc) catch {
             return Error.FailedToWriteOutput;
         };
+
+
         defer alloc.free(element_output);
+        defer pos_index += element_output.len;
+
+        output_width = pos_index + element_output.len;
 
         @memcpy(
-            screen_buffer[position_index .. position_index + element_output.len],
+            screen_buffer[pos_index .. pos_index + element_output.len],
             element_output,
         );
     }
-    std_out.writer().print("{s}", .{screen_buffer}) catch {
+    std_out.writer().print(
+        "{s}{s}{s}",
+        .{
+            ControlSequence.getValue(.hide_cursor).?,
+            ControlSequence.getValue(.clear_screen).?,
+            screen_buffer[0..output_width],
+        },
+    ) catch {
         return Error.FailedToWriteOutput;
     };
 }
 
 /// Moves cursor to the screen-space position cooresponding to
 /// the Global space position provided by the CursorContainer
-pub fn renderCursor(current_window: RenderElement) Error!void {
-    const cursor_position = current_window.cursorContainer.?.getCursorPosition();
+pub fn renderCursor(cursor_parent: RenderElement) Error!void {
+    const cursor_position = cursor_parent.cursor_container.?.getCursorPosition();
     return renderCursorFromGlobalSpace(
-        cursor_position.add(current_window.position),
+        cursor_position.add(cursor_parent.position),
     );
 }
 
-///Uses terminal codes to set rendered cursor position based on window state
+/// Uses terminal codes to set rendered cursor position based on window state
 fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
     var write_buf: [32]u8 = undefined;
     const screen_space_position = getScreenSpaceCursorPosition(cursor_position);
     const cursor_move =
         std.fmt.bufPrint(
             &write_buf,
-            "{c}[{};{}H",
-            .{ control_code.esc, screen_space_position.y, screen_space_position.x },
+            "{c}[{};{}H{s}",
+            .{
+                control_code.esc,
+                screen_space_position.y,
+                screen_space_position.x,
+                ControlSequence.getValue(.show_cursor).?,
+            },
         ) catch {
             return Error.FailedToMoveCursor;
         };
@@ -81,8 +95,8 @@ fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
     };
 }
 
-///Internal Cursor Position is stored using array index coordingates this converts it to terminal
-///cursor coordinates (1 to window size).
+/// Internal Cursor Position is stored using array index coordingates this converts it to terminal
+/// cursor coordinates (1 to window size).
 fn getScreenSpaceCursorPosition(internal_position: Vec2) Vec2 {
     var new_position = internal_position;
     new_position.x += 1;
@@ -91,12 +105,31 @@ fn getScreenSpaceCursorPosition(internal_position: Vec2) Vec2 {
 }
 
 pub fn clearScreen() Error!void {
-    const clear_screen = [1]u8{control_code.esc} ++ "[2J";
-    const move_cursor_to_home = [1]u8{control_code.esc} ++ "[H";
+    const clear_screen = ControlSequence.getValue(.clear_screen).?;
     std_out.writer().print(
         "{s}",
-        .{clear_screen ++ move_cursor_to_home},
+        .{clear_screen},
     ) catch {
         return Error.FailedToClearScreen;
+    };
+}
+
+pub fn enterAltScreen() !void {
+    const enter_screen = ControlSequence.enter_alt_screen.getValue().?;
+    std_out.writer().print(
+        "{s}",
+        .{enter_screen},
+    ) catch {
+        return Error.FailedToEnterAltView;
+    };
+}
+
+pub fn exitAltScreen() !void {
+    const exit_screen = ControlSequence.exit_alt_screen.getValue().?;
+    std_out.writer().print(
+        "{s}",
+        .{exit_screen},
+    ) catch {
+        return Error.FailedToExitAltView;
     };
 }

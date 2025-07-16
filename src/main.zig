@@ -16,7 +16,13 @@ pub fn main() !void {
     defer std.debug.assert(debug_allocator.deinit() == .ok);
     const alloc = debug_allocator.allocator();
 
-    var app = try App.init(alloc);
+    var args = std.process.args();
+
+    _ = args.skip();
+
+    const path: ?[]const u8 = args.next();
+
+    var app = try App.init(alloc, path);
     defer app.deinit() catch |err| {
         std.log.err("{any}", .{err});
     };

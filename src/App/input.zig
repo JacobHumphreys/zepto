@@ -6,8 +6,8 @@ const io = std.io;
 const Reader = std.fs.File.Reader;
 
 const lib = @import("lib");
-const ControlSequence = lib.input.ControlSequence;
-const InputEvent = lib.input.InputEvent;
+const ControlSequence = lib.types.input.ControlSequence;
+const InputEvent = lib.types.input.InputEvent;
 
 pub const Error = error{
     FetchingError,
@@ -28,7 +28,7 @@ pub fn getInputEvent(buffer: []u8) Error!InputEvent {
 pub fn parseEvent(input: []u8) InputEvent {
     if (input.len == 1) {
         switch (input[0]) {
-            getControlCombination('q') => {
+            getControlCombination('x') => {
                 return InputEvent{ .control = ControlSequence.exit };
             },
             control_code.cr, control_code.lf => {
