@@ -25,7 +25,7 @@ var std_out = io.getStdOut();
 /// Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(page: Page, alloc: Allocator) Error!void {
     const page_dimensions = page.getDimensions();
-    const screen_buffer = alloc.alloc(u8, intCast(usize, page_dimensions.x * page_dimensions.y)) catch {
+    const screen_buffer = alloc.alloc(u8, intCast(usize, 2 * page_dimensions.x * page_dimensions.y)) catch {
         return Error.FailedToWriteOutput;
     };
     defer alloc.free(screen_buffer);
@@ -34,21 +34,21 @@ pub fn reRenderOutput(page: Page, alloc: Allocator) Error!void {
     var page_elements = page.getElements(alloc) catch return Error.FailedToWriteOutput;
     defer page_elements.deinit(alloc);
 
+    var output_width: usize = 0;
+    var pos_index: usize = 0;
     for (page_elements.items) |element| {
-        if (!element.is_visible) continue;
-
-        const position_index = intCast(
-            usize,
-            element.position.y * page_dimensions.x + element.position.x,
-        );
-
         const element_output = element.stringable.toString(alloc) catch {
             return Error.FailedToWriteOutput;
         };
+
+
         defer alloc.free(element_output);
+        defer pos_index += element_output.len;
+
+        output_width = pos_index + element_output.len;
 
         @memcpy(
-            screen_buffer[position_index .. position_index + element_output.len],
+            screen_buffer[pos_index .. pos_index + element_output.len],
             element_output,
         );
     }
@@ -57,7 +57,7 @@ pub fn reRenderOutput(page: Page, alloc: Allocator) Error!void {
         .{
             ControlSequence.getValue(.hide_cursor).?,
             ControlSequence.getValue(.clear_screen).?,
-            screen_buffer,
+            screen_buffer[0..output_width],
         },
     ) catch {
         return Error.FailedToWriteOutput;

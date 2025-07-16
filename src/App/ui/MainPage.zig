@@ -5,6 +5,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const MainPage = @This();
 
 const renderables = @import("renderables.zig");
+const RibbonElement = renderables.Ribbon.Element;
 
 const lib = @import("lib");
 const Page = lib.interfaces.Page;
@@ -15,6 +16,15 @@ const intCast = lib.casts.intCast;
 
 const CursorContainer = lib.interfaces.CursorContainer;
 
+pub const element_id = enum {
+    top_bar,
+    top_spacer,
+    text_window,
+    bottom_bar1,
+    bottom_bar2,
+    bottom_bar3,
+};
+
 dimensions: Vec2,
 
 text_window: renderables.TextWindow,
@@ -24,13 +34,17 @@ bottom_bar1: renderables.Ribbon,
 bottom_bar2: renderables.Ribbon,
 bottom_bar3: renderables.Ribbon,
 
-cursor_parent: usize,
+cursor_parent: element_id,
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!MainPage {
     const top_bar = try renderables.Ribbon.init(
         alloc,
         intCast(usize, dimensions.x),
-        &.{"This is a test top ribbon"},
+        &.{
+            RibbonElement{
+                .text = "This is a test top ribbon",
+            },
+        },
     );
 
     const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
@@ -42,19 +56,61 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
     const bottom_bar1 = try renderables.Ribbon.init(
         alloc,
         intCast(usize, dimensions.x),
-        &.{""},
+        &.{.{
+            .text = "",
+        }},
     );
 
     const bottom_bar2 = try renderables.Ribbon.init(
         alloc,
         intCast(usize, dimensions.x),
-        &.{"This is a test bottom ribbon 2"},
+        &.{
+            RibbonElement{
+                .background_color = .white,
+                .foreground_color = .black,
+                .text = "^G Get Help",
+            },
+            .{
+                .text = "^O WriteOut",
+            },
+            .{
+                .text = "^R Read File",
+            },
+            .{
+                .text = "^Y Prev Pg",
+            },
+            .{
+                .text = "^K Cut Text",
+            },
+            .{
+                .text = "^C Cur Pos",
+            },
+        },
     );
 
     const bottom_bar3 = try renderables.Ribbon.init(
         alloc,
         intCast(usize, dimensions.x),
-        &.{"This is a test bottom ribbon 3"},
+        &.{
+            .{
+                .text = "^X Exit",
+            },
+            .{
+                .text = "^J Justify",
+            },
+            .{
+                .text = "^W Where is",
+            },
+            .{
+                .text = "^V Next Pg",
+            },
+            .{
+                .text = "^U UnCut Text",
+            },
+            .{
+                .text = "^T To Spell",
+            },
+        },
     );
 
     return MainPage{
@@ -65,7 +121,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
         .bottom_bar1 = bottom_bar1,
         .bottom_bar2 = bottom_bar2,
         .bottom_bar3 = bottom_bar3,
-        .cursor_parent = 2,
+        .cursor_parent = element_id.text_window,
     };
 }
 
@@ -104,7 +160,7 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
             },
             RenderElement{
                 .stringable = self.bottom_bar2.stringable(),
-                .is_visible = true,
+                .is_visible = false,
                 .position = .{ .x = 0, .y = self.dimensions.y - 2 },
             },
             RenderElement{
@@ -124,7 +180,7 @@ pub fn getCursorParent(self: *MainPage) Allocator.Error!RenderElement {
 
     var elements = try self.getElements(alloc);
     defer elements.deinit(alloc);
-    const cursor_parent = elements.items[self.cursor_parent];
+    const cursor_parent = elements.items[@intFromEnum(self.cursor_parent)];
 
     return cursor_parent;
 }

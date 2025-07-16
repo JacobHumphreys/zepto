@@ -10,24 +10,51 @@ const Vec2 = lib.types.Vec2;
 
 const Ribbon = @This();
 
-elements: ArrayList([]const u8),
+elements: ArrayList(Element),
 width: usize,
 allocator: Allocator,
+
+pub const FgColor = enum(u8) {
+    black = 30,
+    red = 91,
+    green = 92,
+    yellow = 93,
+    blue = 94,
+    magenta = 95,
+    cyan = 96,
+    white = 97,
+};
+
+pub const BgColor = enum(u8) {
+    black = 40,
+    red = 101,
+    green = 102,
+    yellow = 103,
+    blue = 104,
+    magenta = 105,
+    cyan = 106,
+    white = 107,
+};
+
+pub const Element = struct {
+    text: []const u8,
+    background_color: ?BgColor = null,
+    foreground_color: ?FgColor = null,
+};
 
 pub fn init(
     alloc: Allocator,
     width: usize,
-    elements: []const []const u8,
+    elements: []const Element,
 ) Allocator.Error!Ribbon {
-    var self = Ribbon{
+    var element_list = try ArrayList(Element).initCapacity(alloc, elements.len);
+
+    element_list.appendSliceAssumeCapacity(elements);
+    return Ribbon{
         .allocator = alloc,
         .width = width,
-        .elements = ArrayList([]const u8).empty,
+        .elements = element_list,
     };
-
-    try self.elements.insertSlice(alloc, 0, elements);
-
-    return self;
 }
 
 pub fn stringable(self: *Ribbon) Stringable {
@@ -39,22 +66,53 @@ pub fn stringable(self: *Ribbon) Stringable {
 pub fn toString(self: *Ribbon, alloc: Allocator) Allocator.Error![]const u8 {
     const element_width = self.width / self.elements.items.len;
 
-    const output_buffer = try alloc.alloc(u8, self.width);
-    @memset(output_buffer, ' ');
+    var output_buffer = ArrayList(u8).empty;
 
-    for (self.elements.items, 0..) |element, i| {
-        const start_index = i * element_width;
-        const end_index = start_index + element_width;
+    var text_len: usize = 0;
 
-        if (element_width < element.len) {
-            mem.copyForwards(u8, output_buffer[start_index..end_index], element[0..element_width]);
-        } else {
-            const fill_end_index = start_index + element.len;
-            mem.copyForwards(u8, output_buffer[start_index..fill_end_index], element);
+    for (self.elements.items) |element| {
+        text_len += element.text.len;
+        var num_buf: [32]u8 = undefined;
+
+        var fg_str: []const u8 = "";
+        if (element.foreground_color) |color_id| {
+            fg_str = std.fmt.bufPrint(
+                num_buf[0..16],
+                "{c}[{}m",
+                .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
+            ) catch |err| @panic(@errorName(err));
         }
+
+        var bg_str: []const u8 = "";
+        if (element.background_color) |color_id| {
+            bg_str = std.fmt.bufPrint(
+                num_buf[16..],
+                "{c}[{}m",
+                .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
+            ) catch |err| @panic(@errorName(err));
+        }
+
+        const reset_str: []const u8 = if (bg_str.len > 0 or fg_str.len > 0)
+            .{std.ascii.control_code.esc} ++ "[0m"
+        else
+            "";
+
+        const element_output = try std.mem.concat(alloc, u8, &.{
+            fg_str, bg_str, element.text, reset_str,
+        });
+        defer alloc.free(element_output);
+
+        if (element_width > element.text.len) {
+            try output_buffer.appendSlice(alloc, element_output);
+            try output_buffer.appendNTimes(alloc, ' ', element_width - element.text.len);
+        } else {
+            const fmt_len = fg_str.len + bg_str.len;
+            try output_buffer.appendSlice(alloc, element_output[0 .. fmt_len + element_width]);
+        }
+        try output_buffer.appendSlice(alloc, reset_str);
     }
 
-    return output_buffer;
+    return output_buffer.toOwnedSlice(alloc);
 }
 
 pub fn deinit(self: *Ribbon) void {
