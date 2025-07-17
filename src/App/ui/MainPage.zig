@@ -68,21 +68,37 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
             RibbonElement{
                 .background_color = .white,
                 .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^G Get Help",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^O WriteOut",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^R Read File",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^Y Prev Pg",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^K Cut Text",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^C Cur Pos",
             },
         },
@@ -93,21 +109,39 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
         intCast(usize, dimensions.x),
         &.{
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^X Exit",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^J Justify",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^W Where is",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^V Next Pg",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^U UnCut Text",
             },
             .{
+                .background_color = .white,
+                .foreground_color = .black,
+                .color_range = .{ .x = 0, .y = 2 },
                 .text = "^T To Spell",
             },
         },
@@ -160,7 +194,7 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
             },
             RenderElement{
                 .stringable = self.bottom_bar2.stringable(),
-                .is_visible = false,
+                .is_visible = true,
                 .position = .{ .x = 0, .y = self.dimensions.y - 2 },
             },
             RenderElement{

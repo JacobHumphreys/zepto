@@ -5,6 +5,7 @@ const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 
 const lib = @import("lib");
+const intCast = lib.casts.intCast;
 const Stringable = lib.interfaces.Stringable;
 const Vec2 = lib.types.Vec2;
 
@@ -38,6 +39,8 @@ pub const BgColor = enum(u8) {
 
 pub const Element = struct {
     text: []const u8,
+    ///Start index stored in x, non-inclusive end index stored in y.
+    color_range: ?Vec2 = null,
     background_color: ?BgColor = null,
     foreground_color: ?FgColor = null,
 };
@@ -63,7 +66,9 @@ pub fn stringable(self: *Ribbon) Stringable {
 
 /// Outputs a string representing a single line no longer than the width of the ribbon with every
 /// element taking the same amount of space.
-pub fn toString(self: *Ribbon, alloc: Allocator) Allocator.Error![]const u8 {
+pub fn toStringList(self: *Ribbon, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
+    var output_list = ArrayList(ArrayList(u8)).empty;
+
     const element_width = self.width / self.elements.items.len;
 
     var output_buffer = ArrayList(u8).empty;
@@ -97,9 +102,26 @@ pub fn toString(self: *Ribbon, alloc: Allocator) Allocator.Error![]const u8 {
         else
             "";
 
-        const element_output = try std.mem.concat(alloc, u8, &.{
-            fg_str, bg_str, element.text, reset_str,
-        });
+        var range_start: usize = 0;
+        var range_end: usize = element.text.len;
+
+        if (element.color_range) |range| {
+            range_start = intCast(usize, range.x);
+            range_end = intCast(usize, range.y);
+        }
+
+        const element_output = try std.mem.concat(
+            alloc,
+            u8,
+            &.{
+                fg_str,
+                bg_str,
+                element.text[range_start..range_end],
+                reset_str,
+                element.text[range_end..],
+            },
+        );
+
         defer alloc.free(element_output);
 
         if (element_width > element.text.len) {
@@ -107,30 +129,40 @@ pub fn toString(self: *Ribbon, alloc: Allocator) Allocator.Error![]const u8 {
             try output_buffer.appendNTimes(alloc, ' ', element_width - element.text.len);
         } else {
             const fmt_len = fg_str.len + bg_str.len;
-            try output_buffer.appendSlice(alloc, element_output[0 .. fmt_len + element_width]);
+            try output_buffer.appendSlice(
+                alloc,
+                element_output[0 .. fmt_len + element_width + reset_str.len],
+            );
         }
-        try output_buffer.appendSlice(alloc, reset_str);
     }
 
-    return output_buffer.toOwnedSlice(alloc);
+    try output_list.append(alloc, output_buffer);
+    return output_list;
 }
 
 pub fn deinit(self: *Ribbon) void {
     self.elements.deinit(self.allocator);
 }
 
-test "toString" {
+test "toStringList" {
     var test_ribbon = try Ribbon.init(
         std.testing.allocator,
         60,
-        &.{ "C-X Exit", "C-C Copy", "C-V paste", "C-Q Quit" },
+        &.{
+            .{ .text = "C-X Exit" },
+            .{ .text = "C-C Copy" },
+            .{ .text = "C-V paste" },
+            .{ .text = "C-Q Quit" },
+        },
     );
     defer test_ribbon.deinit();
 
     const expected_output = "C-X Exit       C-C Copy       C-V paste      C-Q Quit       ";
 
-    const real_output = try test_ribbon.toString(std.testing.allocator);
-    defer std.testing.allocator.free(real_output);
+    var real_output = try test_ribbon.toStringList(std.testing.allocator);
+    defer real_output.deinit(std.testing.allocator);
 
-    try std.testing.expectEqualStrings(expected_output, real_output);
+    defer real_output.items[0].deinit(std.testing.allocator);
+
+    try std.testing.expectEqualStrings(expected_output, real_output.items[0].items);
 }

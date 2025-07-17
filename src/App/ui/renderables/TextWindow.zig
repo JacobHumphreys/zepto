@@ -195,47 +195,51 @@ pub inline fn stringable(self: *TextWindow) Stringable {
     return Stringable.from(self);
 }
 
-pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
-    const render_size = intCast(usize, self.dimensions.x * self.dimensions.y);
-    const output = try alloc.alloc(u8, render_size);
-    @memset(output, ' ');
+pub fn toStringList(self: *TextWindow, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
+    var output_list = try ArrayList(ArrayList(u8)).initCapacity(
+        alloc,
+        intCast(usize, self.dimensions.y),
+    );
 
-    // 0 represents the first segment, 1 the second and so on.
+    var line_sep_list = try self.buffer.getLineSepperatedList(self.allocator);
+    defer line_sep_list.deinit(self.allocator);
+
+    const lower_bound = self.getLowerViewBound();
+    const upper_bound = lower_bound.add(self.dimensions);
+
+    for (intCast(usize, lower_bound.y)..intCast(usize, upper_bound.y)) |row_num| {
+        if (line_sep_list.items.len <= row_num) break;
+
+        var line = line_sep_list.items[row_num];
+
+        //Line is empty in view but between filled lines
+        if (line.len <= intCast(usize, lower_bound.x)) {
+            output_list.appendAssumeCapacity(.empty);
+            continue;
+        }
+
+        const adjusted_line_len: usize = @min(line.len, intCast(usize, upper_bound.x));
+        line = line[intCast(usize, lower_bound.x)..adjusted_line_len];
+
+        var line_list = try ArrayList(u8).initCapacity(alloc, line.len);
+        line_list.appendSliceAssumeCapacity(line);
+        output_list.appendAssumeCapacity(line_list);
+    }
+
+    return output_list;
+}
+
+fn getLowerViewBound(self: *TextWindow) Vec2 {
+    // 0 is the first segment, 1 is the second and so on
     const view_segment: Vec2 = .{
         .x = @divTrunc(self.cursor_position.x, self.dimensions.x),
         .y = @divTrunc(self.cursor_position.y, self.dimensions.y),
     };
 
-    var line_sep_list = try self.buffer.getLineSepperatedList(self.allocator);
-    defer line_sep_list.deinit(self.allocator);
-
-    const lower_bound = Vec2{
+    return Vec2{
         .x = self.dimensions.x * view_segment.x,
         .y = self.dimensions.y * view_segment.y,
     };
-    const upper_bound = lower_bound.add(self.dimensions);
-
-    for (line_sep_list.items, 0..) |line, row_num| {
-        //Limits output to only viewable vertical section of text_buffer
-        if (row_num < intCast(usize, lower_bound.y)) continue;
-        if (row_num >= intCast(usize, upper_bound.y)) break;
-
-        for (line, 0..) |char, col_num| {
-            //Limits output to only viewable horizontal section of text_buffer
-            if (col_num < intCast(usize, lower_bound.x)) continue;
-            if (col_num >= intCast(usize, upper_bound.x)) break;
-
-            const char_pos = Vec2{
-                .x = intCast(i32, col_num),
-                .y = intCast(i32, row_num),
-            };
-
-            const char_index = getViewIndex(char_pos, lower_bound, self.dimensions);
-            output[char_index] = char;
-        }
-    }
-
-    return output;
 }
 
 inline fn getViewIndex(char_pos: Vec2, lower_bound: Vec2, dimensions: Vec2) usize {

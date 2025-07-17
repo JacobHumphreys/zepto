@@ -3,12 +3,15 @@ const io = std.io;
 const control_code = std.ascii.control_code;
 const Allocator = std.mem.Allocator;
 
+const ArenaAllocator = std.heap.ArenaAllocator;
+
 const lib = @import("lib");
 const intCast = lib.casts.intCast;
 const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.types.input.ControlSequence;
 const CursorContainer = lib.interfaces.CursorContainer;
 const Page = lib.interfaces.Page;
+const ArrayList = std.ArrayListUnmanaged;
 
 const RenderElement = lib.types.RenderElement;
 
@@ -23,45 +26,76 @@ pub const Error = error{
 var std_out = io.getStdOut();
 
 /// Causes full page redraw line by line. ReRenders text and cursor
-pub fn reRenderOutput(page: Page, alloc: Allocator) Error!void {
-    const page_dimensions = page.getDimensions();
-    const screen_buffer = alloc.alloc(u8, intCast(usize, 2 * page_dimensions.x * page_dimensions.y)) catch {
-        return Error.FailedToWriteOutput;
-    };
-    defer alloc.free(screen_buffer);
-    @memset(screen_buffer, ' ');
+pub fn reRenderOutput(page: Page, alloc: Allocator) (Allocator.Error || Error)!void {
+    const screen_buffer_2d = try get2dSceenBuffer(alloc, page);
+    defer alloc.free(screen_buffer_2d);
 
-    var page_elements = page.getElements(alloc) catch return Error.FailedToWriteOutput;
-    defer page_elements.deinit(alloc);
+    var print_buffer = try flattenScreenBuffer(alloc, screen_buffer_2d, page);
+    defer print_buffer.deinit(alloc);
 
-    var output_width: usize = 0;
-    var pos_index: usize = 0;
-    for (page_elements.items) |element| {
-        const element_output = element.stringable.toString(alloc) catch {
-            return Error.FailedToWriteOutput;
-        };
-
-
-        defer alloc.free(element_output);
-        defer pos_index += element_output.len;
-
-        output_width = pos_index + element_output.len;
-
-        @memcpy(
-            screen_buffer[pos_index .. pos_index + element_output.len],
-            element_output,
-        );
-    }
     std_out.writer().print(
         "{s}{s}{s}",
         .{
             ControlSequence.getValue(.hide_cursor).?,
             ControlSequence.getValue(.clear_screen).?,
-            screen_buffer[0..output_width],
+            print_buffer.items,
         },
     ) catch {
         return Error.FailedToWriteOutput;
     };
+}
+
+fn get2dSceenBuffer(alloc: Allocator, page: Page) Allocator.Error![]ArrayList(u8) {
+    const page_dimensions = page.getDimensions();
+
+    var page_elements = try page.getElements(alloc);
+    defer page_elements.deinit(alloc);
+
+    var screen_buffer_2d = try alloc.alloc(ArrayList(u8), intCast(usize, page_dimensions.y));
+    @memset(screen_buffer_2d, ArrayList(u8).empty);
+
+    for (page_elements.items) |element| {
+        var arena = ArenaAllocator.init(alloc);
+        defer arena.deinit();
+        const arena_alloc = arena.allocator();
+
+        if (!element.is_visible) continue;
+
+        const element_output = try element.stringable.toStringList(arena_alloc);
+
+        for (element_output.items, 0..) |line, line_num| {
+            const line_i = line_num + intCast(usize, element.position.y);
+            try screen_buffer_2d[line_i].appendSlice(alloc, line.items);
+        }
+    }
+    return screen_buffer_2d;
+}
+
+fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page) Allocator.Error!ArrayList(u8) {
+    const dimensions = page.getDimensions();
+
+    var print_buffer = try ArrayList(u8).initCapacity(
+        alloc,
+        intCast(usize, 2 * dimensions.x * dimensions.y),
+    );
+
+    for (buffer_2d, 0..) |line, i| {
+        //Fills Empty lines
+        if (line.items.len == 0) {
+            print_buffer.appendNTimesAssumeCapacity(' ', intCast(usize, dimensions.x));
+            continue;
+        }
+        print_buffer.appendSliceAssumeCapacity(line.items);
+        if (line.items.len < intCast(usize, dimensions.x)) {
+            //Pads partially filled lines
+            print_buffer.appendNTimesAssumeCapacity(
+                ' ',
+                intCast(usize, dimensions.x) - line.items.len,
+            );
+        }
+        buffer_2d[i].deinit(alloc);
+    }
+    return print_buffer;
 }
 
 /// Moves cursor to the screen-space position cooresponding to

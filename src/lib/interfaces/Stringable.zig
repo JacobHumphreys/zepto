@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayListUnmanaged;
 const Stringable = @This();
 const Vec2 = @import("../types.zig").Vec2;
 
@@ -7,13 +8,13 @@ ptr: *anyopaque,
 vtable: VTable,
 
 const VTable = struct {
-    toString: *const fn (*anyopaque, Allocator) Allocator.Error![]const u8,
+    toStringList: *const fn (*anyopaque, Allocator) Allocator.Error!ArrayList(ArrayList(u8)),
 };
 
 /// Generates A Stringable Interface from a Pointer to a struct.
 /// Struct MUST implement the following:
 ///
-///     fn toString(*Self, Allocator) Allocator.Error![]const u8
+///     fn toString(*Self, Allocator) Allocator.Error!ArrayList(ArrayList(u8))
 pub fn from(selfPtr: anytype) Stringable {
     const Tptr = @TypeOf(selfPtr);
     const generator = struct {
@@ -26,19 +27,19 @@ pub fn from(selfPtr: anytype) Stringable {
             return @as(Tptr, @ptrCast(@alignCast(ptr)));
         }
 
-        fn toStringOpaque(ptr: *anyopaque, alloc: Allocator) Allocator.Error![]const u8 {
-            return toConcretePtr(ptr).toString(alloc);
+        fn toStringOpaque(ptr: *anyopaque, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
+            return toConcretePtr(ptr).toStringList(alloc);
         }
     };
 
     return Stringable{
         .ptr = generator.getOpaquePtr(selfPtr),
         .vtable = .{
-            .toString = generator.toStringOpaque,
+            .toStringList = generator.toStringOpaque,
         },
     };
 }
 
-pub fn toString(self: Stringable, alloc: Allocator) Allocator.Error![]const u8 {
-    return self.vtable.toString(self.ptr, alloc);
+pub inline fn toStringList(self: Stringable, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
+    return self.vtable.toStringList(self.ptr, alloc);
 }
