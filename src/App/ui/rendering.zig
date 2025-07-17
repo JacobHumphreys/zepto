@@ -71,6 +71,7 @@ fn get2dSceenBuffer(alloc: Allocator, page: Page) Allocator.Error![]ArrayList(u8
     return screen_buffer_2d;
 }
 
+/// "Flattens" the 2d buffer into a singular 1d buffer. Free's buffer2d's items.
 fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page) Allocator.Error!ArrayList(u8) {
     const dimensions = page.getDimensions();
 
@@ -80,20 +81,22 @@ fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page)
     );
 
     for (buffer_2d, 0..) |line, i| {
+        defer buffer_2d[i].deinit(alloc);
+
         //Fills Empty lines
         if (line.items.len == 0) {
-            print_buffer.appendNTimesAssumeCapacity(' ', intCast(usize, dimensions.x));
+            print_buffer.appendNTimesAssumeCapacity('*', intCast(usize, dimensions.x));
             continue;
         }
         print_buffer.appendSliceAssumeCapacity(line.items);
+        
         if (line.items.len < intCast(usize, dimensions.x)) {
             //Pads partially filled lines
             print_buffer.appendNTimesAssumeCapacity(
-                ' ',
+                '_',
                 intCast(usize, dimensions.x) - line.items.len,
             );
         }
-        buffer_2d[i].deinit(alloc);
     }
     return print_buffer;
 }

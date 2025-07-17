@@ -69,14 +69,11 @@ pub fn stringable(self: *Ribbon) Stringable {
 pub fn toStringList(self: *Ribbon, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
     var output_list = ArrayList(ArrayList(u8)).empty;
 
-    const element_width = self.width / self.elements.items.len;
+    const element_width: usize = self.width / self.elements.items.len;
 
     var output_buffer = ArrayList(u8).empty;
 
-    var text_len: usize = 0;
-
     for (self.elements.items) |element| {
-        text_len += element.text.len;
         var num_buf: [32]u8 = undefined;
 
         var fg_str: []const u8 = "";
@@ -128,15 +125,23 @@ pub fn toStringList(self: *Ribbon, alloc: Allocator) Allocator.Error!ArrayList(A
             try output_buffer.appendSlice(alloc, element_output);
             try output_buffer.appendNTimes(alloc, ' ', element_width - element.text.len);
         } else {
-            const fmt_len = fg_str.len + bg_str.len;
             try output_buffer.appendSlice(
                 alloc,
-                element_output[0 .. fmt_len + element_width + reset_str.len],
+                element_output[0 .. fg_str.len + bg_str.len + element_width + reset_str.len],
             );
         }
     }
 
+    // Ensures the elements fill the entire row.
+    // Neccesary because of colored text creating problems.
+    const print_width = element_width * self.elements.items.len;
+
+    if (print_width < self.width) {
+        try output_buffer.appendNTimes(alloc, ' ', self.width - print_width);
+    }
+
     try output_list.append(alloc, output_buffer);
+
     return output_list;
 }
 
