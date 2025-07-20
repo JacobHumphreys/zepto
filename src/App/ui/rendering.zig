@@ -85,7 +85,7 @@ fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page)
 
         //Fills Empty lines
         if (line.items.len == 0) {
-            print_buffer.appendNTimesAssumeCapacity('*', intCast(usize, dimensions.x));
+            print_buffer.appendNTimesAssumeCapacity(' ', intCast(usize, dimensions.x));
             continue;
         }
         print_buffer.appendSliceAssumeCapacity(line.items);
@@ -93,7 +93,7 @@ fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page)
         if (line.items.len < intCast(usize, dimensions.x)) {
             //Pads partially filled lines
             print_buffer.appendNTimesAssumeCapacity(
-                '_',
+                ' ',
                 intCast(usize, dimensions.x) - line.items.len,
             );
         }
