@@ -51,7 +51,10 @@ pub fn run(self: *App) Signal!void {
 
     const window_size = Terminal.getWindowSize();
     if (!std.meta.eql(window_size, self.ui_handler.getOutputDimensions())) {
-        self.ui_handler.setOutputDimensions(window_size);
+        self.ui_handler.setOutputDimensions(window_size) catch |err| {
+            std.log.err("{any}", .{err});
+            return Signal.Exit;
+        };
     }
 
     var input_buffer: [8]u8 = undefined;

@@ -66,8 +66,9 @@ pub fn getOutputDimensions(self: *UIHandler) Vec2 {
     return self.current_page.getDimensions();
 }
 
-pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) void {
+pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error || ui.Error)!void {
     self.current_page.setOutputDimensions(dimensions);
+    try rendering.reRenderOutput(self.current_page.page(), self.alloc);
 }
 
 pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allocator.Error || ui.Error || Signal)!void {
