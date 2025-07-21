@@ -12,12 +12,13 @@ const InputEvent = types.input.InputEvent;
 const Signal = types.Signal;
 const ControlSequence = types.input.ControlSequence;
 const Buffer = types.Buffer;
-const Page = lib.interfaces.Page;
 const intCast = lib.casts.intCast;
 
 const ui = @import("ui.zig");
 const rendering = ui.rendering;
-const MainPage = ui.MainPage;
+const pages = ui.pages;
+const Page = pages.Page;
+const MainPage = pages.MainPage;
 
 const UIHandler = @This();
 
@@ -31,9 +32,6 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer) (Alloc
     var page = try MainPage.init(alloc, dimensions, buffer);
 
     try rendering.reRenderOutput(page.page(), alloc);
-
-    const cursor_parent = try page.getCursorParent();
-    try rendering.renderCursor(cursor_parent);
 
     return UIHandler{
         .alloc = alloc,
@@ -57,9 +55,6 @@ pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || ui.
                 self.current_page.page(),
                 self.alloc,
             );
-            return rendering.renderCursor(
-                try self.current_page.getCursorParent(),
-            );
         },
         .control => |sequence| {
             return self.processControlSequence(sequence);
@@ -67,8 +62,12 @@ pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || ui.
     }
 }
 
+pub fn getOutputDimensions(self: *UIHandler) Vec2 {
+    return self.current_page.getDimensions();
+}
+
 pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) void {
-    self.current_page.dimensions = dimensions;
+    self.current_page.setOutputDimensions(dimensions);
 }
 
 pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allocator.Error || ui.Error || Signal)!void {
@@ -79,7 +78,6 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allo
                 self.current_page.page(),
                 self.alloc,
             );
-            return rendering.renderCursor(try self.current_page.getCursorParent());
         },
 
         .exit => return Signal.Exit,
@@ -98,7 +96,6 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allo
                 self.current_page.page(),
                 self.alloc,
             );
-            return rendering.renderCursor(cursor_parent);
         },
 
         .left => {
@@ -109,7 +106,6 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allo
                 self.current_page.page(),
                 self.alloc,
             );
-            return rendering.renderCursor(cursor_parent);
         },
         .right => {
             const cursor_parent = try self.current_page.getCursorParent();

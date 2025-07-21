@@ -2,18 +2,16 @@ const std = @import("std");
 const io = std.io;
 const control_code = std.ascii.control_code;
 const Allocator = std.mem.Allocator;
-
 const ArenaAllocator = std.heap.ArenaAllocator;
+const ArrayList = std.ArrayListUnmanaged;
 
 const lib = @import("lib");
 const intCast = lib.casts.intCast;
 const Vec2 = lib.types.Vec2;
 const ControlSequence = lib.types.input.ControlSequence;
 const CursorContainer = lib.interfaces.CursorContainer;
-const Page = lib.interfaces.Page;
-const ArrayList = std.ArrayListUnmanaged;
-
 const RenderElement = lib.types.RenderElement;
+const Page = @import("./pages.zig").Page;
 
 pub const Error = error{
     FailedToClearScreen,
@@ -23,7 +21,7 @@ pub const Error = error{
     FailedToExitAltView,
 };
 
-var std_out = io.getStdOut();
+ var std_out = io.getStdOut();
 
 /// Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(page: Page, alloc: Allocator) (Allocator.Error || Error)!void {
@@ -43,6 +41,8 @@ pub fn reRenderOutput(page: Page, alloc: Allocator) (Allocator.Error || Error)!v
     ) catch {
         return Error.FailedToWriteOutput;
     };
+
+    try renderCursor(try page.getCursorParent());
 }
 
 fn get2dSceenBuffer(alloc: Allocator, page: Page) Allocator.Error![]ArrayList(u8) {
@@ -89,7 +89,7 @@ fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page)
             continue;
         }
         print_buffer.appendSliceAssumeCapacity(line.items);
-        
+
         if (line.items.len < intCast(usize, dimensions.x)) {
             //Pads partially filled lines
             print_buffer.appendNTimesAssumeCapacity(

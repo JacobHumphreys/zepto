@@ -47,7 +47,12 @@ pub fn deinit(self: *App) !void {
 }
 
 pub fn run(self: *App) Signal!void {
-    self.ui_handler.setOutputDimensions(Terminal.getWindowSize());
+    paceFrames();
+
+    const window_size = Terminal.getWindowSize();
+    if (!std.meta.eql(window_size, self.ui_handler.getOutputDimensions())) {
+        self.ui_handler.setOutputDimensions(window_size);
+    }
 
     var input_buffer: [8]u8 = undefined;
     const event = input.getInputEvent(&input_buffer) catch |err| {
@@ -68,4 +73,16 @@ pub fn run(self: *App) Signal!void {
             return Signal.Exit;
         },
     };
+}
+
+const max_refresh = @as(i64, @intFromFloat(1.0 / 200.0 * 1000));
+
+var last_update: i64 = 0;
+fn paceFrames() void {
+    const delta_time = std.time.milliTimestamp() - last_update;
+    last_update = std.time.milliTimestamp();
+    if (max_refresh > delta_time) {
+        const sleep_time: u64 = @intCast((max_refresh - delta_time) * 1000 * 1000);
+        std.Thread.sleep(sleep_time);
+    }
 }

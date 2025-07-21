@@ -4,11 +4,11 @@ const ArrayList = std.ArrayListUnmanaged;
 
 const MainPage = @This();
 
-const renderables = @import("renderables.zig");
+const renderables = @import("../renderables.zig");
 const RibbonElement = renderables.Ribbon.Element;
 
 const lib = @import("lib");
-const Page = lib.interfaces.Page;
+const Page = @import("../pages.zig").Page;
 const Vec2 = lib.types.Vec2;
 const Buffer = lib.types.Buffer;
 const RenderElement = lib.types.RenderElement;
@@ -28,7 +28,7 @@ pub const element_id = enum {
 dimensions: Vec2,
 
 text_window: renderables.TextWindow,
-top_bar: renderables.Ribbon,
+top_bar: renderables.AlignedRibbon,
 top_spacer: renderables.Spacer,
 bottom_bar1: renderables.Ribbon,
 bottom_bar2: renderables.Ribbon,
@@ -37,14 +37,25 @@ bottom_bar3: renderables.Ribbon,
 cursor_parent: element_id,
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!MainPage {
-    const top_bar = try renderables.Ribbon.init(
+    const top_bar = try renderables.AlignedRibbon.init(
         alloc,
         intCast(usize, dimensions.x),
         &.{
-            RibbonElement{
-                .text = "This is a test top ribbon",
+            .{
+                .text = "zepto 0.0.1",
+                .alignment = .left,
+            },
+            .{
+                .text = "New Buffer",
+                .alignment = .center,
+            },
+            .{
+                .text = "modified",
+                .alignment = .right,
             },
         },
+        .white,
+        .black,
     );
 
     const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
@@ -167,6 +178,37 @@ pub fn deinit(self: *MainPage) void {
     self.top_bar.deinit();
 }
 
+pub const AppInfo = struct {
+    name: []const u8 = "zepto",
+    version: []const u8 = "0.0.1",
+    buffer_name: []const u8 = "New Buffer",
+    state: []const u8 = "",
+};
+
+pub fn updateAppInfo(self: *MainPage, alloc: Allocator, appInfo: AppInfo) void {
+    self.top_bar.elements.clearAndFree(alloc);
+    self.top_bar.elements.appendSlice(alloc, &.{
+        RibbonElement{
+            .background_color = .white,
+            .text = appInfo.name,
+        },
+        RibbonElement{
+            .background_color = .white,
+            .text = appInfo.version,
+        },
+        RibbonElement{
+            .background_color = .white,
+            .text = appInfo.buffer_name,
+            .alignment = .center,
+        },
+        RibbonElement{
+            .background_color = .white,
+            .text = appInfo.state,
+            .alignment = .right,
+        },
+    });
+}
+
 pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {
     var element_list = try ArrayList(RenderElement).initCapacity(alloc, 6);
     element_list.appendSliceAssumeCapacity(
@@ -228,5 +270,16 @@ pub fn getDimensions(self: *MainPage) Vec2 {
 }
 
 pub fn page(self: *MainPage) Page {
-    return Page.from(self);
+    return .{ .main_page = self };
+}
+
+pub fn setOutputDimensions(self: *@This(), dimensions: Vec2) void {
+    self.dimensions = dimensions;
+    self.top_bar.width = intCast(usize, dimensions.x);
+    self.top_spacer.width = intCast(usize, dimensions.x);
+    self.bottom_bar1.width = intCast(usize, dimensions.x);
+    self.bottom_bar2.width = intCast(usize, dimensions.x);
+    self.bottom_bar3.width = intCast(usize, dimensions.x);
+    const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
+    self.text_window.dimensions = window_dimensions;
 }

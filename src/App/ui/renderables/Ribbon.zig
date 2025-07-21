@@ -8,6 +8,8 @@ const lib = @import("lib");
 const intCast = lib.casts.intCast;
 const Stringable = lib.interfaces.Stringable;
 const Vec2 = lib.types.Vec2;
+const BgColor = lib.text.BgColor;
+const FgColor = lib.text.FgColor;
 
 const Ribbon = @This();
 
@@ -15,27 +17,6 @@ elements: ArrayList(Element),
 width: usize,
 allocator: Allocator,
 
-pub const FgColor = enum(u8) {
-    black = 30,
-    red = 91,
-    green = 92,
-    yellow = 93,
-    blue = 94,
-    magenta = 95,
-    cyan = 96,
-    white = 97,
-};
-
-pub const BgColor = enum(u8) {
-    black = 40,
-    red = 101,
-    green = 102,
-    yellow = 103,
-    blue = 104,
-    magenta = 105,
-    cyan = 106,
-    white = 107,
-};
 
 pub const Element = struct {
     text: []const u8,
