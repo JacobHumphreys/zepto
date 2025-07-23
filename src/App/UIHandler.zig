@@ -13,6 +13,7 @@ const Signal = types.Signal;
 const ControlSequence = types.input.ControlSequence;
 const Buffer = types.Buffer;
 const intCast = lib.casts.intCast;
+const AppInfo = lib.types.AppInfo;
 
 const ui = @import("ui.zig");
 const rendering = ui.rendering;
@@ -25,11 +26,11 @@ const UIHandler = @This();
 current_page: MainPage,
 alloc: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer) (Allocator.Error || ui.Error)!UIHandler {
-    try rendering.enterAltScreen();
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
+    //    try rendering.enterAltScreen();
     try rendering.clearScreen();
 
-    var page = try MainPage.init(alloc, dimensions, buffer);
+    var page = try MainPage.init(alloc, dimensions, buffer, app_info);
 
     try rendering.reRenderOutput(page.page(), alloc);
 
@@ -40,9 +41,9 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer) (Alloc
 }
 
 pub fn deinit(self: *UIHandler) void {
-    rendering.exitAltScreen() catch |err| {
-        std.log.err("{any}", .{err});
-    };
+    //    rendering.exitAltScreen() catch |err| {
+    //        std.log.err("{any}", .{err});
+    //    };
     self.current_page.deinit();
 }
 
@@ -60,15 +61,13 @@ pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || ui.
             return self.processControlSequence(sequence);
         },
     }
-}
 
-pub fn getOutputDimensions(self: *UIHandler) Vec2 {
-    return self.current_page.getDimensions();
-}
+    const appstate: AppInfo = switch (self.current_page.getCurrentBuffer().state) {
+        .modified => .{ .state = "Modified" },
+        .unmodified => .{ .state = "" },
+    };
 
-pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error || ui.Error)!void {
-    self.current_page.setOutputDimensions(dimensions);
-    try rendering.reRenderOutput(self.current_page.page(), self.alloc);
+    try self.current_page.updateAppInfo(self.alloc, appstate);
 }
 
 pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allocator.Error || ui.Error || Signal)!void {
@@ -143,6 +142,15 @@ pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allo
     }
 }
 
-pub fn getCurrentBuffer(self: *UIHandler) Buffer {
+pub fn getOutputDimensions(self: *UIHandler) Vec2 {
+    return self.current_page.getDimensions();
+}
+
+pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error || ui.Error)!void {
+    self.current_page.setOutputDimensions(dimensions);
+    try rendering.reRenderOutput(self.current_page.page(), self.alloc);
+}
+
+pub fn getCurrentBuffer(self: *UIHandler) *Buffer {
     return self.current_page.getCurrentBuffer();
 }

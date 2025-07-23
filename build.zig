@@ -1,4 +1,5 @@
 const std = @import("std");
+const build_zig_zon = @embedFile("build.zig.zon");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -40,6 +41,10 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.linkLibC();
+
+    var build_options = std.Build.Step.Options.create(b);
+    build_options.addOption([]const u8, "contents", build_zig_zon);
+    exe.root_module.addOptions("build_zig_zon", build_options);
 
     b.installArtifact(exe);
 

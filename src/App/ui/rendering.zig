@@ -21,7 +21,7 @@ pub const Error = error{
     FailedToExitAltView,
 };
 
- var std_out = io.getStdOut();
+var std_out = io.getStdOut();
 
 /// Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(page: Page, alloc: Allocator) (Allocator.Error || Error)!void {

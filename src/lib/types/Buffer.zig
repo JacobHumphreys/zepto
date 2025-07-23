@@ -10,6 +10,7 @@ const Vec2 = @import("Vec2.zig");
 const Buffer = @This();
 
 data: ArrayList(u8),
+state: enum { modified, unmodified } = .unmodified,
 target_path: ?[]const u8 = null,
 alloc: Allocator,
 
@@ -21,6 +22,7 @@ pub const Error = error{
 pub fn init(alloc: Allocator) Buffer {
     return Buffer{
         .data = ArrayList(u8).empty,
+        .state = .unmodified,
         .alloc = alloc,
     };
 }
@@ -30,12 +32,14 @@ pub fn deinit(self: *Buffer) void {
 }
 
 pub fn appendCharAtPosition(self: *Buffer, position: usize, char: u8) Error!void {
+    self.state = .modified;
     self.data.insert(self.alloc, position, char) catch {
         return Error.FailedToAppendToBuffer;
     };
 }
 
 pub fn appendSliceAtPosition(self: *Buffer, position: usize, slice: []const u8) Error!void {
+    self.state = .modified;
     self.data.insertSlice(self.alloc, position, slice) catch {
         return Error.FailedToAppendToBuffer;
     };

@@ -2,19 +2,18 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 
-const MainPage = @This();
-
-const renderables = @import("../renderables.zig");
-const RibbonElement = renderables.Ribbon.Element;
-
 const lib = @import("lib");
-const Page = @import("../pages.zig").Page;
+const AppInfo = lib.types.AppInfo;
 const Vec2 = lib.types.Vec2;
 const Buffer = lib.types.Buffer;
 const RenderElement = lib.types.RenderElement;
 const intCast = lib.casts.intCast;
-
 const CursorContainer = lib.interfaces.CursorContainer;
+
+const Page = @import("../pages.zig").Page;
+const renderables = @import("../renderables.zig");
+
+const MainPage = @This();
 
 pub const element_id = enum {
     top_bar,
@@ -33,24 +32,33 @@ top_spacer: renderables.Spacer,
 bottom_bar1: renderables.Ribbon,
 bottom_bar2: renderables.Ribbon,
 bottom_bar3: renderables.Ribbon,
+allocator: Allocator,
 
 cursor_parent: element_id,
+current_buffer: *Buffer,
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!MainPage {
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
+    const current_buffer = try alloc.create(Buffer);
+    current_buffer.* = buffer;
+
     const top_bar = try renderables.AlignedRibbon.init(
         alloc,
         intCast(usize, dimensions.x),
         &.{
             .{
-                .text = "zepto 0.0.1",
+                .text = app_info.name orelse "zepto",
                 .alignment = .left,
             },
             .{
-                .text = "New Buffer",
+                .text = app_info.version orelse "0.0.0",
+                .alignment = .left,
+            },
+            .{
+                .text = app_info.buffer_name orelse "New Buffer",
                 .alignment = .center,
             },
             .{
-                .text = "modified",
+                .text = app_info.state orelse "",
                 .alignment = .right,
             },
         },
@@ -60,7 +68,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
 
     const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
 
-    const text_window = renderables.TextWindow.init(alloc, window_dimensions, buffer);
+    const text_window = renderables.TextWindow.init(alloc, window_dimensions, current_buffer);
 
     const spacer = renderables.Spacer.init(intCast(usize, dimensions.x));
 
@@ -76,7 +84,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
         alloc,
         intCast(usize, dimensions.x),
         &.{
-            RibbonElement{
+            .{
                 .background_color = .white,
                 .foreground_color = .black,
                 .color_range = .{ .x = 0, .y = 2 },
@@ -166,44 +174,44 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) Allocator.Error!
         .bottom_bar1 = bottom_bar1,
         .bottom_bar2 = bottom_bar2,
         .bottom_bar3 = bottom_bar3,
+        .current_buffer = current_buffer,
+        .allocator = alloc,
         .cursor_parent = element_id.text_window,
     };
 }
 
 pub fn deinit(self: *MainPage) void {
-    self.text_window.deinit();
+    self.current_buffer.deinit();
+    self.allocator.destroy(self.current_buffer);
     self.bottom_bar1.deinit();
     self.bottom_bar2.deinit();
     self.bottom_bar3.deinit();
     self.top_bar.deinit();
 }
 
-pub const AppInfo = struct {
-    name: []const u8 = "zepto",
-    version: []const u8 = "0.0.1",
-    buffer_name: []const u8 = "New Buffer",
-    state: []const u8 = "",
-};
-
-pub fn updateAppInfo(self: *MainPage, alloc: Allocator, appInfo: AppInfo) void {
+pub fn updateAppInfo(self: *MainPage, alloc: Allocator, appInfo: AppInfo) Allocator.Error!void {
+    const old_info: AppInfo = .{
+        .name = self.top_bar.elements.items[0].text,
+        .version = self.top_bar.elements.items[1].text,
+        .buffer_name = self.top_bar.elements.items[2].text,
+        .state = self.top_bar.elements.items[3].text,
+    };
     self.top_bar.elements.clearAndFree(alloc);
-    self.top_bar.elements.appendSlice(alloc, &.{
-        RibbonElement{
-            .background_color = .white,
-            .text = appInfo.name,
+    try self.top_bar.elements.appendSlice(alloc, &.{
+        .{
+            .text = appInfo.name orelse old_info.name.?,
+            .alignment = .left,
         },
-        RibbonElement{
-            .background_color = .white,
-            .text = appInfo.version,
+        .{
+            .text = appInfo.version orelse old_info.version.?,
+            .alignment = .left,
         },
-        RibbonElement{
-            .background_color = .white,
-            .text = appInfo.buffer_name,
+        .{
+            .text = appInfo.buffer_name orelse old_info.buffer_name.?,
             .alignment = .center,
         },
-        RibbonElement{
-            .background_color = .white,
-            .text = appInfo.state,
+        .{
+            .text = appInfo.state orelse old_info.state.?,
             .alignment = .right,
         },
     });
@@ -261,8 +269,8 @@ pub fn getCursorParent(self: *MainPage) Allocator.Error!RenderElement {
     return cursor_parent;
 }
 
-pub fn getCurrentBuffer(self: *MainPage) Buffer {
-    return self.text_window.buffer;
+pub fn getCurrentBuffer(self: *MainPage) *Buffer {
+    return self.current_buffer;
 }
 
 pub fn getDimensions(self: *MainPage) Vec2 {

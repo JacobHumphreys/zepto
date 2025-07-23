@@ -8,9 +8,12 @@ const Signal = @import("lib").types.Signal;
 const input = @import("App/input.zig");
 const UIHandler = @import("App/UIHandler.zig");
 
+const lib = @import("lib");
+const AppInfo = lib.types.AppInfo;
+
 const files = @import("App/files.zig");
 
-const Buffer = @import("lib").types.Buffer;
+const Buffer = lib.types.Buffer;
 
 const App = @This();
 
@@ -18,12 +21,12 @@ terminal: Terminal,
 ui_handler: UIHandler,
 alloc: Allocator,
 
-pub fn init(alloc: Allocator, path: ?[]const u8) !App {
+pub fn init(alloc: Allocator, app_info: AppInfo) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
     const window_dimensions = Terminal.getWindowSize();
 
-    const buffer = if (path) |p|
+    const buffer = if (app_info.buffer_name) |p|
         try files.importFileData(alloc, p)
     else
         Buffer.init(alloc);
@@ -32,6 +35,7 @@ pub fn init(alloc: Allocator, path: ?[]const u8) !App {
         alloc,
         window_dimensions,
         buffer,
+        app_info,
     );
 
     return App{
@@ -65,7 +69,7 @@ pub fn run(self: *App) Signal!void {
 
     self.ui_handler.processEvent(event) catch |err| switch (err) {
         Signal.SaveBuffer => {
-            files.exportFileData(self.ui_handler.getCurrentBuffer(), self.alloc) catch {
+            files.exportFileData(self.ui_handler.getCurrentBuffer().*, self.alloc) catch {
                 log.err("Could Not Export File Data", .{});
             };
             return Signal.Exit;

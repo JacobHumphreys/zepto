@@ -140,12 +140,18 @@ pub fn applyLeftElements(self: *AlignedRibbon, alloc: Allocator, buff: []u8) !vo
     const elem_output_buff = try alloc.alloc(u8, elements_width);
     defer alloc.free(elem_output_buff);
 
-    for (elements, 0..) |e, i| {
+    var previous_elements_width: usize = 0;
+
+    for (elements) |e| {
         @memset(elem_output_buff, ' ');
         const cpy_width = @min(elements_width, e.text.len);
         @memcpy(elem_output_buff[0..cpy_width], e.text[0..cpy_width]);
-
-        @memcpy(buff[i * elements_width .. (i + 1) * elements_width], elem_output_buff);
+        const padding: usize = if (cpy_width < elements_width) 1 else 0;
+        @memcpy(
+            buff[previous_elements_width .. previous_elements_width + cpy_width + padding],
+            elem_output_buff[0 .. cpy_width + padding],
+        );
+        previous_elements_width += cpy_width + padding;
     }
 }
 

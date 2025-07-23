@@ -24,20 +24,16 @@ const new_line_sequence = ControlSequence.new_line.getValue().?;
 
 cursor_position: Vec2,
 dimensions: Vec2,
-buffer: Buffer, //one dimensional because of how annoying newlines are
+buffer: *Buffer, //one dimensional because of how annoying newlines are
 allocator: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) TextWindow {
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: *Buffer) TextWindow {
     return TextWindow{
         .cursor_position = .{ .x = 0, .y = 0 },
         .dimensions = dimensions,
         .buffer = buffer,
         .allocator = alloc,
     };
-}
-
-pub fn deinit(self: *TextWindow) void {
-    self.buffer.deinit();
 }
 
 ///Adds char to input buffer at cursor position and moves cursor foreward
