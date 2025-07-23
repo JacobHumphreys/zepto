@@ -42,14 +42,12 @@ pub fn localToAbsoultePath(
     ) catch return Error.FileNotFound;
     f.close();
 
-    var target_dir_path: []const u8 = undefined;
-    var target_file_name: []const u8 = undefined;
+    var target_dir_path: []const u8 = "./";
+    var target_file_name: []const u8 = path;
     if (std.mem.lastIndexOf(u8, path, "/")) |index| {
         target_dir_path = path[0..index];
         target_file_name = path[index..];
-    } else {
-        return Error.FileNotFound;
-    }
+    } 
 
     var target_dir = fs.cwd().openDir(target_dir_path, .{}) catch return Error.FileNotFound;
     defer target_dir.close();
