@@ -7,6 +7,8 @@ const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
 const lib = @import("lib");
+const Signal = lib.types.Signal;
+const InputEvent = lib.types.input.InputEvent;
 const Stringable = lib.interfaces.Stringable;
 const CursorContainer = lib.interfaces.CursorContainer;
 const Vec2 = lib.types.Vec2;
@@ -16,9 +18,10 @@ const Buffer = lib.types.Buffer;
 
 const TextWindow = @This();
 
-pub const Error = (error{
+const Error = error{
     NoSequenceValue,
-} || Buffer.Error);
+    FailedToRemoveFromBuffer,
+};
 
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
@@ -37,18 +40,61 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: *Buffer) TextWindow {
 }
 
 ///Adds char to input buffer at cursor position and moves cursor foreward
-pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
+pub fn addCharToBuffer(self: *TextWindow, char: u8) (Buffer.Error)!void {
     const cursor_position = self.getCursorPositionIndex();
     try self.buffer.appendCharAtPosition(cursor_position, char);
     self.moveCursor(.{ .x = 1, .y = 0 });
 }
 
 ///Adds sequence text to input buffer at cursor position and moves cursor foreward
-pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!void {
+pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) (Buffer.Error || Error)!void {
     const sequence_text = sequence.getValue() orelse return Error.NoSequenceValue;
     const cursor_position = self.getCursorPositionIndex();
     try self.buffer.appendSliceAtPosition(cursor_position, sequence_text);
     self.moveCursor(Vec2{ .x = intCast(i32, sequence_text.len), .y = 0 });
+}
+
+pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorContainer.Error)!void {
+    switch (event) {
+        .input => |char| {
+            self.addCharToBuffer(char) catch return CursorContainer.Error.FailedToProcessEvent;
+            return;
+        },
+        .control => |sequence| {
+            switch (sequence) {
+                ControlSequence.new_line => {
+                    self.addSequenceToBuffer(sequence) catch |err| {
+                        log.err("{any}", .{err});
+                        return CursorContainer.Error.FailedToProcessEvent;
+                    };
+                    self.moveCursor(.{
+                        .x = -self.cursor_position.x,
+                        .y = 1,
+                    });
+                },
+                ControlSequence.backspace => {
+                    self.deleteAtCursorPosition() catch |err| {
+                        log.err("{any}", .{err});
+                        return CursorContainer.Error.FailedToProcessEvent;
+                    };
+                },
+                .left => {
+                    self.moveCursor(.{ .x = -1 });
+                },
+                .right => {
+                    self.moveCursor(.{ .x = 1 });
+                },
+                .up => {
+                    self.moveCursor(.{ .y = -1 });
+                },
+                .down => {
+                    self.moveCursor(.{ .y = 1 });
+                },
+                else => return,
+            }
+            return;
+        },
+    }
 }
 
 /// Returns the position of the cursor
@@ -153,7 +199,8 @@ pub fn deleteAtCursorPosition(self: *TextWindow) Error!void {
             _ = self.buffer.data.orderedRemove(cursor_index - 1);
             cursor_index -= 1;
         }
-        self.cursor_position = self.getCursorPositionFromIndex(cursor_index) catch return Error.FailedToRemoveFromBuffer;
+        self.cursor_position = self.getCursorPositionFromIndex(cursor_index) catch
+            return Error.FailedToRemoveFromBuffer;
         return;
     }
 

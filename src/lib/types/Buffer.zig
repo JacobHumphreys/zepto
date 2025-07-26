@@ -64,3 +64,25 @@ pub fn getLineSepperatedList(self: Buffer, alloc: Allocator) Allocator.Error!Arr
 
     return line_sep_list;
 }
+
+//Returns new cursor position
+pub fn deleteAtCursorPosition(self: *Buffer) Error!Vec2 {
+    var cursor_index = self.getCursorPositionIndex();
+
+    //at beginning of file
+    if (cursor_index == 0) return;
+
+    //delete new line
+    if (self.cursor_position.x == 0 and self.cursor_position.y != 0) {
+        for (0..new_line_sequence.len) |_| {
+            _ = self.data.orderedRemove(cursor_index - 1);
+            cursor_index -= 1;
+        }
+        self.cursor_position = self.getCursorPositionFromIndex(cursor_index) catch return Error.FailedToRemoveFromBuffer;
+        return;
+    }
+
+    //regular char delete
+    _ = self.data.orderedRemove(cursor_index - 1);
+    self.moveCursor(.{ .x = -1, .y = 0 });
+}

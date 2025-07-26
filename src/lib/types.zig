@@ -6,6 +6,7 @@ pub const input = @import("types/input.zig");
 
 pub const Signal = error{
     Exit,
+    PromptSave,
     SaveBuffer,
 };
 

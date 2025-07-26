@@ -3,36 +3,58 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 
 const lib = @import("lib");
-const RenderElement = lib.types.RenderElement;
-const Buffer = lib.types.Buffer;
-const Vec2 = lib.types.Vec2;
+const types = lib.types;
+const Signal = types.Signal;
+const InputEvent = types.input.InputEvent;
+const RenderElement = types.RenderElement;
+const CursorContainer = lib.interfaces.CursorContainer;
+const Buffer = types.Buffer;
+const Vec2 = types.Vec2;
 
 pub const MainPage = @import("pages/MainPage.zig");
 
+/// Comptime interface for Page. All Pages must be defined at comptime
 pub const Page = union(enum) {
     main_page: *MainPage,
 
-    pub fn getElements(self: Page, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {
+    pub inline fn getElements(self: Page, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {
         switch (self) {
             inline else => |page| return page.getElements(alloc),
         }
     }
 
-    pub fn getCursorParent(self: Page) Allocator.Error!RenderElement {
+    pub inline fn getCursorParent(self: Page) Allocator.Error!RenderElement {
         switch (self) {
             inline else => |page| return page.getCursorParent(),
         }
     }
 
-    pub fn getCurrentBuffer(self: Page) Buffer {
+    pub inline fn setOutputDimensions(self: Page, new_dimensions: Vec2) void {
+        switch (self) {
+            inline else => |page| return page.setOutputDimensions(new_dimensions),
+        }
+    }
+
+    pub inline fn getCurrentBuffer(self: Page) *Buffer {
         switch (self) {
             inline else => |page| return page.getCurrentBuffer(),
         }
     }
 
-    pub fn getDimensions(self: Page) Vec2 {
+    pub inline fn getDimensions(self: Page) Vec2 {
         switch (self) {
             inline else => |page| return page.getDimensions(),
+        }
+    }
+
+    pub inline fn processEvent(self: Page, event: InputEvent) (Allocator.Error || Signal)!void {
+        switch (self) {
+            inline else => |page| return page.processEvent(event),
+        }
+    }
+    pub inline fn deinit(self: Page) void {
+        switch (self) {
+            inline else => |page| return page.deinit(),
         }
     }
 };

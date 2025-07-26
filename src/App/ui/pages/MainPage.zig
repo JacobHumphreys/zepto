@@ -3,6 +3,8 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 
 const lib = @import("lib");
+const Signal = lib.types.Signal;
+const InputEvent = lib.types.input.InputEvent;
 const AppInfo = lib.types.AppInfo;
 const Vec2 = lib.types.Vec2;
 const Buffer = lib.types.Buffer;
@@ -26,15 +28,23 @@ pub const element_id = enum {
 
 dimensions: Vec2,
 
-text_window: renderables.TextWindow,
-top_bar: renderables.AlignedRibbon,
-top_spacer: renderables.Spacer,
-bottom_bar1: renderables.Ribbon,
-bottom_bar2: renderables.Ribbon,
-bottom_bar3: renderables.Ribbon,
-allocator: Allocator,
+elements: struct {
+    top_bar: renderables.AlignedRibbon,
+    top_spacer: renderables.Spacer,
+    text_window: renderables.TextWindow,
+    bottom_bar1: renderables.CursorAlignedRibbon,
+    bottom_bar2: renderables.Ribbon,
+    bottom_bar3: renderables.Ribbon,
+},
 
-cursor_parent: element_id,
+alloc: Allocator,
+
+state: enum {
+    edit_text,
+    prompt_save,
+} = .edit_text,
+
+cursor_parent: element_id = .text_window,
 current_buffer: *Buffer,
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
@@ -72,12 +82,10 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
 
     const spacer = renderables.Spacer.init(intCast(usize, dimensions.x));
 
-    const bottom_bar1 = try renderables.Ribbon.init(
+    const bottom_bar1 = renderables.CursorAlignedRibbon.init(
         alloc,
+        "",
         intCast(usize, dimensions.x),
-        &.{.{
-            .text = "",
-        }},
     );
 
     const bottom_bar2 = try renderables.Ribbon.init(
@@ -168,36 +176,61 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
 
     return MainPage{
         .dimensions = dimensions,
-        .top_bar = top_bar,
-        .top_spacer = spacer,
-        .text_window = text_window,
-        .bottom_bar1 = bottom_bar1,
-        .bottom_bar2 = bottom_bar2,
-        .bottom_bar3 = bottom_bar3,
+        .elements = .{
+            .top_bar = top_bar,
+            .top_spacer = spacer,
+            .text_window = text_window,
+            .bottom_bar1 = bottom_bar1,
+            .bottom_bar2 = bottom_bar2,
+            .bottom_bar3 = bottom_bar3,
+        },
         .current_buffer = current_buffer,
-        .allocator = alloc,
-        .cursor_parent = element_id.text_window,
+        .alloc = alloc,
     };
+}
+
+pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!void {
+    const cursor_parent = try self.getCursorParent();
+    const cursor_container = cursor_parent.cursor_container.?;
+
+    if (event == InputEvent.control and event.control == .exit) {
+        return Signal.Exit;
+    }
+
+    cursor_container.processEvent(event) catch |err| switch (err) {
+        CursorContainer.Error.FailedToProcessEvent => {
+            std.log.err("{any}", .{err});
+            return Signal.Exit;
+        },
+        else => |e| return e,
+    };
+
+    const appstate: AppInfo = switch (self.getCurrentBuffer().state) {
+        .modified => .{ .state = "Modified" },
+        .unmodified => .{ .state = "" },
+    };
+
+    try self.updateAppInfo(self.alloc, appstate);
 }
 
 pub fn deinit(self: *MainPage) void {
     self.current_buffer.deinit();
-    self.allocator.destroy(self.current_buffer);
-    self.bottom_bar1.deinit();
-    self.bottom_bar2.deinit();
-    self.bottom_bar3.deinit();
-    self.top_bar.deinit();
+    self.alloc.destroy(self.current_buffer);
+    self.elements.bottom_bar1.deinit();
+    self.elements.bottom_bar2.deinit();
+    self.elements.bottom_bar3.deinit();
+    self.elements.top_bar.deinit();
 }
 
 pub fn updateAppInfo(self: *MainPage, alloc: Allocator, appInfo: AppInfo) Allocator.Error!void {
     const old_info: AppInfo = .{
-        .name = self.top_bar.elements.items[0].text,
-        .version = self.top_bar.elements.items[1].text,
-        .buffer_name = self.top_bar.elements.items[2].text,
-        .state = self.top_bar.elements.items[3].text,
+        .name = self.elements.top_bar.elements.items[0].text,
+        .version = self.elements.top_bar.elements.items[1].text,
+        .buffer_name = self.elements.top_bar.elements.items[2].text,
+        .state = self.elements.top_bar.elements.items[3].text,
     };
-    self.top_bar.elements.clearAndFree(alloc);
-    try self.top_bar.elements.appendSlice(alloc, &.{
+    self.elements.top_bar.elements.clearAndFree(alloc);
+    try self.elements.top_bar.elements.appendSlice(alloc, &.{
         .{
             .text = appInfo.name orelse old_info.name.?,
             .alignment = .left,
@@ -222,33 +255,34 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
     element_list.appendSliceAssumeCapacity(
         &.{
             RenderElement{
-                .stringable = self.top_bar.stringable(),
+                .stringable = self.elements.top_bar.stringable(),
                 .is_visible = true,
                 .position = .{ .x = 0, .y = 0 },
             },
             RenderElement{
-                .stringable = self.top_spacer.stringable(),
+                .stringable = self.elements.top_spacer.stringable(),
                 .is_visible = true,
                 .position = .{ .x = 0, .y = 1 },
             },
             RenderElement{
-                .stringable = self.text_window.stringable(),
-                .cursor_container = self.text_window.cursorContainer(),
+                .stringable = self.elements.text_window.stringable(),
+                .cursor_container = self.elements.text_window.cursorContainer(),
                 .is_visible = true,
                 .position = .{ .x = 0, .y = 2 },
             },
             RenderElement{
-                .stringable = self.bottom_bar1.stringable(),
-                .is_visible = true,
+                .stringable = self.elements.bottom_bar1.stringable(),
+                .is_visible = false,
+                .cursor_container = self.elements.bottom_bar1.cursorContainer(),
                 .position = .{ .x = 0, .y = self.dimensions.y - 3 },
             },
             RenderElement{
-                .stringable = self.bottom_bar2.stringable(),
+                .stringable = self.elements.bottom_bar2.stringable(),
                 .is_visible = true,
                 .position = .{ .x = 0, .y = self.dimensions.y - 2 },
             },
             RenderElement{
-                .stringable = self.bottom_bar3.stringable(),
+                .stringable = self.elements.bottom_bar3.stringable(),
                 .is_visible = true,
                 .position = .{ .x = 0, .y = self.dimensions.y - 1 },
             },
@@ -281,13 +315,13 @@ pub fn page(self: *MainPage) Page {
     return .{ .main_page = self };
 }
 
-pub fn setOutputDimensions(self: *@This(), dimensions: Vec2) void {
+pub fn setOutputDimensions(self: *MainPage, dimensions: Vec2) void {
     self.dimensions = dimensions;
-    self.top_bar.width = intCast(usize, dimensions.x);
-    self.top_spacer.width = intCast(usize, dimensions.x);
-    self.bottom_bar1.width = intCast(usize, dimensions.x);
-    self.bottom_bar2.width = intCast(usize, dimensions.x);
-    self.bottom_bar3.width = intCast(usize, dimensions.x);
+    self.elements.top_bar.width = intCast(usize, dimensions.x);
+    self.elements.top_spacer.width = intCast(usize, dimensions.x);
+    self.elements.bottom_bar1.width = intCast(usize, dimensions.x);
+    self.elements.bottom_bar2.width = intCast(usize, dimensions.x);
+    self.elements.bottom_bar3.width = intCast(usize, dimensions.x);
     const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
-    self.text_window.dimensions = window_dimensions;
+    self.elements.text_window.dimensions = window_dimensions;
 }

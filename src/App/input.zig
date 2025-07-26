@@ -31,7 +31,8 @@ pub fn parseEvent(input: []u8) InputEvent {
             getControlCombination('x') => {
                 return InputEvent{ .control = ControlSequence.exit };
             },
-            control_code.cr, control_code.lf => {
+            control_code.cr,
+            => {
                 return InputEvent{ .control = ControlSequence.new_line };
             },
             control_code.del => {

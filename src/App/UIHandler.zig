@@ -11,6 +11,7 @@ const Vec2 = types.Vec2;
 const InputEvent = types.input.InputEvent;
 const Signal = types.Signal;
 const ControlSequence = types.input.ControlSequence;
+const CCError = lib.interfaces.CursorContainer.Error;
 const Buffer = types.Buffer;
 const intCast = lib.casts.intCast;
 const AppInfo = lib.types.AppInfo;
@@ -23,20 +24,21 @@ const MainPage = pages.MainPage;
 
 const UIHandler = @This();
 
-current_page: MainPage,
+current_page: Page,
 alloc: Allocator,
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
     //    try rendering.enterAltScreen();
     try rendering.clearScreen();
 
-    var page = try MainPage.init(alloc, dimensions, buffer, app_info);
+    var page = try alloc.create(MainPage);
+    page.* = try MainPage.init(alloc, dimensions, buffer, app_info);
 
     try rendering.reRenderOutput(page.page(), alloc);
 
     return UIHandler{
         .alloc = alloc,
-        .current_page = page,
+        .current_page = page.page(),
     };
 }
 
@@ -45,101 +47,16 @@ pub fn deinit(self: *UIHandler) void {
     //        std.log.err("{any}", .{err});
     //    };
     self.current_page.deinit();
+    self.alloc.destroy(self.current_page.main_page);
 }
 
-pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || ui.Error || Signal)!void {
-    switch (event) {
-        .input => |char| {
-            try self.current_page.text_window.addCharToBuffer(char);
+pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || Signal)!void {
+    try self.current_page.processEvent(event);
 
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-        },
-        .control => |sequence| {
-            return self.processControlSequence(sequence);
-        },
-    }
-
-    const appstate: AppInfo = switch (self.current_page.getCurrentBuffer().state) {
-        .modified => .{ .state = "Modified" },
-        .unmodified => .{ .state = "" },
+    rendering.reRenderOutput(self.current_page, self.alloc) catch |err| {
+        std.log.err("{any}", .{err});
+        return Signal.Exit;
     };
-
-    try self.current_page.updateAppInfo(self.alloc, appstate);
-}
-
-pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allocator.Error || ui.Error || Signal)!void {
-    switch (sequence) {
-        .backspace => {
-            try self.current_page.text_window.deleteAtCursorPosition();
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-        },
-
-        .exit => return Signal.Exit,
-
-        .new_line => {
-            try self.current_page.text_window.addSequenceToBuffer(sequence);
-
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-
-            const cursor_pos = cursor_container.getCursorPosition();
-
-            cursor_container.moveCursor(.{ .x = -cursor_pos.x, .y = 1 });
-
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-        },
-
-        .left => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .x = -1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-        },
-        .right => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .x = 1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-        .up => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .y = -1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-        .down => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .y = 1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-
-        else => return,
-    }
 }
 
 pub fn getOutputDimensions(self: *UIHandler) Vec2 {
@@ -148,7 +65,7 @@ pub fn getOutputDimensions(self: *UIHandler) Vec2 {
 
 pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error || ui.Error)!void {
     self.current_page.setOutputDimensions(dimensions);
-    try rendering.reRenderOutput(self.current_page.page(), self.alloc);
+    try rendering.reRenderOutput(self.current_page, self.alloc);
 }
 
 pub fn getCurrentBuffer(self: *UIHandler) *Buffer {
