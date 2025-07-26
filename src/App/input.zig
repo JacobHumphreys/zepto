@@ -14,11 +14,11 @@ pub const Error = error{
 };
 
 const std_in: File = std.io.getStdIn();
-const std_in_reader: Reader = std_in.reader();
+var std_in_reader: Reader = std_in.reader();
 
 /// Get next InputEvent struct representing user input
-pub fn getInputEvent(buffer: []u8) Error!InputEvent {
-    const input = getNextInput(buffer) catch {
+pub fn getInputEvent(read_buffer: []u8) Error!InputEvent {
+    const input = getNextInput(read_buffer) catch {
         return Error.FetchingError;
     };
 
@@ -56,7 +56,40 @@ fn getControlCombination(char: u8) u8 {
 }
 
 ///Used to get next string of characters or characters read from stdin
-pub fn getNextInput(buffer: []u8) Reader.NoEofError![]u8 {
-    const input_len = try std_in_reader.read(buffer);
-    return buffer[0..input_len];
+pub fn getNextInput(read_buffer: []u8) Reader.NoEofError![]u8 {
+    const input_len = try std_in_reader.read(read_buffer);
+    return read_buffer[0..input_len];
+}
+
+test "input event" {
+    var tmp_in_file = value: {
+        break :value std.fs.openFileAbsolute("/tmp/zepto_tmp_in", .{}) catch {
+            break :value try std.fs.createFileAbsolute("/tmp/zepto_tmp_in", .{
+                .read = true,
+                .exclusive = false,
+                .truncate = false,
+            });
+        };
+    };
+
+    defer {
+        tmp_in_file.close();
+        _ = std.fs.deleteFileAbsolute("/tmp/zepto_tmp_in") catch {
+            std.debug.print("Failed to delete zepto_tmp_in", .{});
+        };
+    }
+
+    std_in_reader = tmp_in_file.reader();
+    var std_in_writer = tmp_in_file.writer();
+    defer std_in_reader = std_in.reader();
+
+    var read_buff: [8]u8 = undefined;
+
+    _ = try std_in_writer.writeByte('a');
+    try tmp_in_file.seekTo(0);
+
+    const expected = InputEvent{ .input = 'a' };
+    const real = try getInputEvent(&read_buff);
+    try std.testing.expect(real == .input);
+    try std.testing.expectEqual(expected.input, real.input);
 }

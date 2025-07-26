@@ -59,7 +59,7 @@ pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || Sig
     };
 }
 
-pub fn getOutputDimensions(self: *UIHandler) Vec2 {
+pub inline fn getOutputDimensions(self: *UIHandler) Vec2 {
     return self.current_page.getDimensions();
 }
 
@@ -68,6 +68,6 @@ pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error 
     try rendering.reRenderOutput(self.current_page, self.alloc);
 }
 
-pub fn getCurrentBuffer(self: *UIHandler) *Buffer {
+pub inline fn getCurrentBuffer(self: *UIHandler) *Buffer {
     return self.current_page.getCurrentBuffer();
 }
