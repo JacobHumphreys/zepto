@@ -8,11 +8,12 @@ pub const Signal = error{
     Exit,
     PromptSave,
     SaveBuffer,
+    RedrawBuffer,
 };
 
 pub const AppInfo = struct {
     name: ?[]const u8 = null,
     version: ?[]const u8 = null,
     buffer_name: ?[]const u8 = null,
-    state: ?[]const u8 = null ,
+    state: ?[]const u8 = null,
 };

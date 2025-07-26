@@ -51,11 +51,12 @@ pub fn deinit(self: *UIHandler) void {
 }
 
 pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || Signal)!void {
-    try self.current_page.processEvent(event);
-
-    rendering.reRenderOutput(self.current_page, self.alloc) catch |err| {
-        std.log.err("{any}", .{err});
-        return Signal.Exit;
+    self.current_page.processEvent(event) catch |err| switch (err) {
+        Signal.RedrawBuffer => rendering.reRenderOutput(self.current_page, self.alloc) catch |e| {
+            std.log.err("{any}", .{e});
+            return Signal.Exit;
+        },
+        else => return err,
     };
 }
 

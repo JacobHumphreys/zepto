@@ -58,41 +58,44 @@ pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorConta
     switch (event) {
         .input => |char| {
             self.addCharToBuffer(char) catch return CursorContainer.Error.FailedToProcessEvent;
-            return;
+            return Signal.RedrawBuffer;
         },
-        .control => |sequence| {
-            switch (sequence) {
-                ControlSequence.new_line => {
-                    self.addSequenceToBuffer(sequence) catch |err| {
-                        log.err("{any}", .{err});
-                        return CursorContainer.Error.FailedToProcessEvent;
-                    };
-                    self.moveCursor(.{
-                        .x = -self.cursor_position.x,
-                        .y = 1,
-                    });
-                },
-                ControlSequence.backspace => {
-                    self.deleteAtCursorPosition() catch |err| {
-                        log.err("{any}", .{err});
-                        return CursorContainer.Error.FailedToProcessEvent;
-                    };
-                },
-                .left => {
-                    self.moveCursor(.{ .x = -1 });
-                },
-                .right => {
-                    self.moveCursor(.{ .x = 1 });
-                },
-                .up => {
-                    self.moveCursor(.{ .y = -1 });
-                },
-                .down => {
-                    self.moveCursor(.{ .y = 1 });
-                },
-                else => return,
-            }
-            return;
+        .control => |sequence| switch (sequence) {
+            ControlSequence.new_line => {
+                self.addSequenceToBuffer(sequence) catch |err| {
+                    log.err("{any}", .{err});
+                    return CursorContainer.Error.FailedToProcessEvent;
+                };
+                self.moveCursor(.{
+                    .x = -self.cursor_position.x,
+                    .y = 1,
+                });
+                return Signal.RedrawBuffer;
+            },
+            ControlSequence.backspace => {
+                self.deleteAtCursorPosition() catch |err| {
+                    log.err("{any}", .{err});
+                    return CursorContainer.Error.FailedToProcessEvent;
+                };
+                return Signal.RedrawBuffer;
+            },
+            .left => {
+                self.moveCursor(.{ .x = -1 });
+                return Signal.RedrawBuffer;
+            },
+            .right => {
+                self.moveCursor(.{ .x = 1 });
+                return Signal.RedrawBuffer;
+            },
+            .up => {
+                self.moveCursor(.{ .y = -1 });
+                return Signal.RedrawBuffer;
+            },
+            .down => {
+                self.moveCursor(.{ .y = 1 });
+                return Signal.RedrawBuffer;
+            },
+            else => return,
         },
     }
 }

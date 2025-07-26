@@ -52,6 +52,7 @@ pub const Page = union(enum) {
             inline else => |page| return page.processEvent(event),
         }
     }
+
     pub inline fn deinit(self: Page) void {
         switch (self) {
             inline else => |page| return page.deinit(),
