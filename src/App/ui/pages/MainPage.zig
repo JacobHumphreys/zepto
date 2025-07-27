@@ -92,6 +92,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
             .width = intCast(usize, dimensions.x),
             .foreground_color = .black,
             .background_color = .white,
+            .hidden = true,
         },
     );
 
@@ -201,17 +202,20 @@ fn switchState(self: *MainPage, new_state: PageState) void {
     switch (new_state) {
         .edit_text => {
             self.cursor_parent = .text_window;
+            self.elements.bottom_bar1.hidden = true;
             self.elements.bottom_bar1.text = "";
             self.elements.bottom_bar1.clearInput();
         },
 
         .prompt_save => {
+            self.elements.bottom_bar1.hidden = false;
             self.cursor_parent = .bottom_bar1;
             self.elements.bottom_bar1.text = "Save Current Buffer Y/N:";
             self.elements.bottom_bar1.clearInput();
         },
 
         .get_buff_path => {
+            self.elements.bottom_bar1.hidden = false;
             self.cursor_parent = .bottom_bar1;
             self.elements.bottom_bar1.text = "Enter Path:";
             self.elements.bottom_bar1.clearInput();
@@ -341,8 +345,8 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
             },
             RenderElement{
                 .stringable = self.elements.bottom_bar1.stringable(),
-                .is_visible = true,
                 .cursor_container = self.elements.bottom_bar1.cursorContainer(),
+                .is_visible = !self.elements.bottom_bar1.hidden,
                 .position = .{ .x = 0, .y = self.dimensions.y - 3 },
             },
             RenderElement{
