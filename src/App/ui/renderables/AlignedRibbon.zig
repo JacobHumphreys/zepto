@@ -164,8 +164,8 @@ pub fn applyCenteredElements(self: *AlignedRibbon, alloc: Allocator, buff: []u8)
         }
     }.f);
 
-    const elements_width = buff.len / elements.len;
     if (elements.len == 0) return;
+    const elements_width = buff.len / elements.len;
 
     const elem_output_buff = try alloc.alloc(u8, elements_width);
     defer alloc.free(elem_output_buff);

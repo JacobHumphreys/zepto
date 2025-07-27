@@ -2,18 +2,13 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
-const ArrayList = std.ArrayListUnmanaged;
 
 const lib = @import("lib");
 const types = lib.types;
 const Vec2 = types.Vec2;
 const InputEvent = types.input.InputEvent;
 const Signal = types.Signal;
-const ControlSequence = types.input.ControlSequence;
-const CCError = lib.interfaces.CursorContainer.Error;
 const Buffer = types.Buffer;
-const intCast = lib.casts.intCast;
 const AppInfo = lib.types.AppInfo;
 
 const ui = @import("ui.zig");

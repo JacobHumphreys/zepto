@@ -32,20 +32,23 @@ elements: struct {
     top_bar: renderables.AlignedRibbon,
     top_spacer: renderables.Spacer,
     text_window: renderables.TextWindow,
-    bottom_bar1: renderables.CursorAlignedRibbon,
+    bottom_bar1: renderables.PromptRibbon,
     bottom_bar2: renderables.Ribbon,
     bottom_bar3: renderables.Ribbon,
 },
 
 alloc: Allocator,
 
-state: enum {
-    edit_text,
-    prompt_save,
-} = .edit_text,
+state: PageState = .edit_text,
 
 cursor_parent: element_id = .text_window,
 current_buffer: *Buffer,
+
+const PageState = enum {
+    edit_text,
+    prompt_save,
+    get_buff_path,
+};
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
     const current_buffer = try alloc.create(Buffer);
@@ -82,10 +85,14 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
 
     const spacer = renderables.Spacer.init(intCast(usize, dimensions.x));
 
-    const bottom_bar1 = renderables.CursorAlignedRibbon.init(
+    const bottom_bar1 = renderables.PromptRibbon.init(
         alloc,
-        "",
-        intCast(usize, dimensions.x),
+        .{
+            .text = "",
+            .width = intCast(usize, dimensions.x),
+            .foreground_color = .black,
+            .background_color = .white,
+        },
     );
 
     const bottom_bar2 = try renderables.Ribbon.init(
@@ -189,28 +196,90 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
     };
 }
 
+fn switchState(self: *MainPage, new_state: PageState) void {
+    if (self.state == new_state) return;
+    switch (new_state) {
+        .edit_text => {
+            self.cursor_parent = .text_window;
+            self.elements.bottom_bar1.text = "";
+            self.elements.bottom_bar1.clearInput();
+        },
+
+        .prompt_save => {
+            self.cursor_parent = .bottom_bar1;
+            self.elements.bottom_bar1.text = "Save Current Buffer Y/N:";
+            self.elements.bottom_bar1.clearInput();
+        },
+
+        .get_buff_path => {
+            self.cursor_parent = .bottom_bar1;
+            self.elements.bottom_bar1.text = "Enter Path:";
+            self.elements.bottom_bar1.clearInput();
+        },
+    }
+    self.state = new_state;
+}
+
 pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!void {
     const cursor_parent = try self.getCursorParent();
     const cursor_container = cursor_parent.cursor_container.?;
-
-    if (event == InputEvent.control and event.control == .exit) {
-        return Signal.Exit;
-    }
 
     cursor_container.processEvent(event) catch |err| switch (err) {
         CursorContainer.Error.FailedToProcessEvent => {
             std.log.err("{any}", .{err});
             return Signal.Exit;
         },
+        Signal.Exit => {
+            switch (self.state) {
+                PageState.edit_text => {
+                    self.switchState(.prompt_save);
+                    return Signal.RedrawBuffer;
+                },
+                PageState.get_buff_path => {
+                    if (self.elements.bottom_bar1.input.items.len == 0) return;
+                    self.current_buffer.target_path = self.elements.bottom_bar1.input.items;
+                    return Signal.SaveBuffer;
+                },
+                PageState.prompt_save => self.updatePage() catch |signal| return signal,
+            }
+        },
+        Signal.RedrawBuffer => {
+            self.updatePage() catch |signal| return signal;
+            return Signal.RedrawBuffer;
+        },
         else => |e| return e,
     };
+}
 
-    const appstate: AppInfo = switch (self.getCurrentBuffer().state) {
-        .modified => .{ .state = "Modified" },
-        .unmodified => .{ .state = "" },
-    };
+pub fn updatePage(self: *MainPage) Signal!void {
+    switch (self.state) {
+        .prompt_save => {
+            std.log.debug("prompt_save", .{});
+            const answer = self.elements.bottom_bar1.input.items;
+            if (answer.len < 1) return;
+            if (std.ascii.toLower(answer[0]) == 'y') {
+                std.log.debug("yes!", .{});
+                self.switchState(.get_buff_path);
+                if (self.current_buffer.target_path != null) return Signal.SaveBuffer;
+            } else if (std.ascii.toLower(answer[0]) == 'n') {
+                std.log.debug("no!", .{});
+                self.switchState(.edit_text);
+            }
+        },
 
-    try self.updateAppInfo(self.alloc, appstate);
+        .edit_text => {
+            std.log.debug("edit text", .{});
+            const appstate: AppInfo = switch (self.getCurrentBuffer().state) {
+                .modified => .{ .state = "Modified" },
+                .unmodified => .{ .state = "" },
+            };
+
+            self.updateAppInfo(self.alloc, appstate) catch |err| {
+                std.log.err("Couldn't update app info {any}", .{err});
+            };
+        },
+        else => {},
+    }
 }
 
 pub fn deinit(self: *MainPage) void {
@@ -272,7 +341,7 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
             },
             RenderElement{
                 .stringable = self.elements.bottom_bar1.stringable(),
-                .is_visible = false,
+                .is_visible = true,
                 .cursor_container = self.elements.bottom_bar1.cursorContainer(),
                 .position = .{ .x = 0, .y = self.dimensions.y - 3 },
             },
@@ -303,15 +372,15 @@ pub fn getCursorParent(self: *MainPage) Allocator.Error!RenderElement {
     return cursor_parent;
 }
 
-pub fn getCurrentBuffer(self: *MainPage) *Buffer {
+pub inline fn getCurrentBuffer(self: *MainPage) *Buffer {
     return self.current_buffer;
 }
 
-pub fn getDimensions(self: *MainPage) Vec2 {
+pub inline fn getDimensions(self: *MainPage) Vec2 {
     return self.dimensions;
 }
 
-pub fn page(self: *MainPage) Page {
+pub inline fn page(self: *MainPage) Page {
     return .{ .main_page = self };
 }
 

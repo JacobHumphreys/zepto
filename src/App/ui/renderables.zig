@@ -3,6 +3,6 @@
 pub const TextWindow = @import("renderables/TextWindow.zig");
 pub const Ribbon = @import("renderables/Ribbon.zig");
 pub const AlignedRibbon = @import("renderables/AlignedRibbon.zig");
-pub const CursorAlignedRibbon = @import("renderables/CursorAlignedRibbon.zig");
+pub const PromptRibbon = @import("renderables/PromptRibbon.zig");
 pub const Spacer = @import("renderables/Spacer.zig");
 pub const Error = (error{FailedToProcessEvent});

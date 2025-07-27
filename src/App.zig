@@ -69,8 +69,8 @@ pub fn run(self: *App) Signal!void {
 
     self.ui_handler.processEvent(event) catch |err| switch (err) {
         Signal.SaveBuffer => {
-            files.exportFileData(self.ui_handler.getCurrentBuffer().*, self.alloc) catch {
-                log.err("Could Not Export File Data", .{});
+            files.exportFileData(self.ui_handler.getCurrentBuffer().*, self.alloc) catch |e|{
+                log.err("Could Not Export File Data: {any}", .{e});
             };
             return Signal.Exit;
         },

@@ -11,8 +11,6 @@ pub const std_options: std.Options = .{
 };
 
 pub fn main() !void {
-    try logging.init();
-
     var debug_allocator = std.heap.DebugAllocator(.{}).init;
     defer std.debug.assert(debug_allocator.deinit() == .ok);
     const alloc = debug_allocator.allocator();
