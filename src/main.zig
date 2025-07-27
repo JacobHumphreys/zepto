@@ -27,7 +27,7 @@ pub fn main() !void {
     };
 
     while (true) {
-        app.run() catch |err| switch (err) {
+        app.run(alloc) catch |err| switch (err) {
             Signal.Exit => break,
             else => return err,
         };
@@ -40,7 +40,7 @@ fn getVersion() []const u8 {
         if (std.mem.containsAtLeast(u8, line, 1, ".version")) {
             const start_index = std.mem.indexOf(u8, line, "\"") orelse return "";
             const end_index = std.mem.lastIndexOf(u8, line, "\"") orelse return "";
-            return line[start_index + 1..end_index];
+            return line[start_index + 1 .. end_index];
         }
     }
     return "";

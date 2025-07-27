@@ -233,6 +233,12 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
             std.log.err("{any}", .{err});
             return Signal.Exit;
         },
+
+        Signal.RedrawBuffer => {
+            try self.updatePage();
+            return Signal.RedrawBuffer;
+        },
+
         Signal.Exit => {
             switch (self.state) {
                 PageState.edit_text => {
@@ -244,43 +250,33 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
                     self.current_buffer.target_path = self.elements.bottom_bar1.input.items;
                     return Signal.SaveBuffer;
                 },
-                PageState.prompt_save => self.updatePage() catch |signal| return signal,
+                PageState.prompt_save => try self.updatePage(),
             }
-        },
-        Signal.RedrawBuffer => {
-            self.updatePage() catch |signal| return signal;
-            return Signal.RedrawBuffer;
         },
         else => |e| return e,
     };
 }
 
-pub fn updatePage(self: *MainPage) Signal!void {
+pub fn updatePage(self: *MainPage) (Allocator.Error || Signal)!void {
     switch (self.state) {
-        .prompt_save => {
-            std.log.debug("prompt_save", .{});
-            const answer = self.elements.bottom_bar1.input.items;
-            if (answer.len < 1) return;
-            if (std.ascii.toLower(answer[0]) == 'y') {
-                std.log.debug("yes!", .{});
-                self.switchState(.get_buff_path);
-                if (self.current_buffer.target_path != null) return Signal.SaveBuffer;
-            } else if (std.ascii.toLower(answer[0]) == 'n') {
-                std.log.debug("no!", .{});
-                self.switchState(.edit_text);
-            }
-        },
-
         .edit_text => {
-            std.log.debug("edit text", .{});
             const appstate: AppInfo = switch (self.getCurrentBuffer().state) {
                 .modified => .{ .state = "Modified" },
                 .unmodified => .{ .state = "" },
             };
 
-            self.updateAppInfo(self.alloc, appstate) catch |err| {
-                std.log.err("Couldn't update app info {any}", .{err});
-            };
+            try self.updateAppInfo(self.alloc, appstate);
+        },
+        
+        .prompt_save => {
+            const answer = self.elements.bottom_bar1.input.items;
+            if (answer.len < 1) return;
+            if (std.ascii.toLower(answer[0]) == 'y') {
+                self.switchState(.get_buff_path);
+                if (self.current_buffer.target_path != null) return Signal.SaveBuffer;
+            } else if (std.ascii.toLower(answer[0]) == 'n') {
+                return Signal.Exit;
+            }
         },
         else => {},
     }

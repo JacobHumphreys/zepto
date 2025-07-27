@@ -24,20 +24,21 @@ pub const ControlSequence = enum {
     hide_cursor,
     unknown,
 
+    const esc = [1]u8{control_code.esc};
     const OutputSequenceMap = EnumMap(ControlSequence, []const u8).init(.{
         .new_line = "\n",
-        .clear_screen = [_]u8{std.ascii.control_code.esc} ++ "[2J" ++ [1]u8{control_code.esc} ++ "[H",
-        .enter_alt_screen = [_]u8{std.ascii.control_code.esc} ++ "[?1049h",
-        .exit_alt_screen = [_]u8{std.ascii.control_code.esc} ++ "[?1049l",
-        .hide_cursor = [_]u8{std.ascii.control_code.esc} ++ "[?25l",
-        .show_cursor = [_]u8{std.ascii.control_code.esc} ++ "[?25h",
+        .clear_screen = esc ++ "[2J" ++ esc ++ "[H",
+        .enter_alt_screen = esc ++ "[?1049h",
+        .exit_alt_screen = esc ++ "[?1049l",
+        .show_cursor = esc ++ "[?25h",
+        .hide_cursor = esc ++ "[?25l",
     });
 
-    pub fn getValue(key: ControlSequence) ?[]const u8 {
+    pub inline fn getValue(key: ControlSequence) ?[]const u8 {
         return OutputSequenceMap.get(key);
     }
 
-    pub fn from(sequence: []const u8) ControlSequence {
+    pub inline fn from(sequence: []const u8) ControlSequence {
         return KeyCodeMap.get(sequence) orelse ControlSequence.unknown;
     }
 };

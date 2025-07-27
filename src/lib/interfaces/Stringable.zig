@@ -14,7 +14,7 @@ const VTable = struct {
 /// Generates A Stringable Interface from a Pointer to a struct.
 /// Struct MUST implement the following:
 ///
-///     fn toString(*Self, Allocator) Allocator.Error!ArrayList(ArrayList(u8))
+///     fn toStringList(*Self, Allocator) Allocator.Error!ArrayList(ArrayList(u8))
 pub fn from(selfPtr: anytype) Stringable {
     const Tptr = @TypeOf(selfPtr);
     const generator = struct {

@@ -150,7 +150,7 @@ pub fn processEvent(self: *PromptRibbon, event: InputEvent) (Signal || CursorCon
                 return CursorContainer.Error.FailedToProcessEvent;
             };
 
-            self.moveCursor(.{ .x = 1, .y = 0 });
+            self.moveCursor(.{ .x = 1 });
             return Signal.RedrawBuffer;
         },
         .control => |sequence| {

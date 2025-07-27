@@ -38,9 +38,9 @@ pub fn parseEvent(input: []u8) InputEvent {
             control_code.del => {
                 return InputEvent{ .control = .backspace };
             },
-            else => {
-                if (ascii.isPrint(input[0]))
-                    return InputEvent{ .input = input[0] }
+            else => |char| {
+                if (ascii.isPrint(char))
+                    return InputEvent{ .input = char }
                 else
                     return InputEvent{ .control = .unknown };
             },
