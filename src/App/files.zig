@@ -7,8 +7,8 @@ const lib = @import("lib");
 const Buffer = lib.types.Buffer;
 
 const Error = error{
-    FileNotFound,
     PathAllocError,
+    InvalidPath,
 };
 
 const MEGA = 1_000_000;
@@ -39,19 +39,17 @@ pub fn localToAbsoultePath(
     const f = fs.cwd().openFile(
         path,
         fs.File.OpenFlags{ .mode = .read_only },
-    ) catch return Error.FileNotFound;
+    ) catch return Error.InvalidPath;
     f.close();
 
-    var target_dir_path: []const u8 = undefined;
-    var target_file_name: []const u8 = undefined;
+    var target_dir_path: []const u8 = "./";
+    var target_file_name: []const u8 = path;
     if (std.mem.lastIndexOf(u8, path, "/")) |index| {
         target_dir_path = path[0..index];
         target_file_name = path[index..];
-    } else {
-        return Error.FileNotFound;
     }
 
-    var target_dir = fs.cwd().openDir(target_dir_path, .{}) catch return Error.FileNotFound;
+    var target_dir = fs.cwd().openDir(target_dir_path, .{}) catch return Error.InvalidPath;
     defer target_dir.close();
 
     const target_dir_abs_path = target_dir.realpathAlloc(alloc, ".") catch
@@ -62,18 +60,26 @@ pub fn localToAbsoultePath(
 }
 
 pub fn exportFileData(buffer: Buffer, alloc: Allocator) !void {
-    std.debug.assert(buffer.target_path != null);
+    if (buffer.target_path == null) return Error.InvalidPath;
 
-    const absolute_path = if (buffer.target_path.?[0] != '/')
-        try localToAbsoultePath(alloc, buffer.target_path.?)
-    else
-        buffer.target_path.?;
+    const absolute_path = if (buffer.target_path.?[0] != '/') value: {
+        break :value localToAbsoultePath(alloc, buffer.target_path.?) catch {
+            const cwd_path = try fs.cwd().realpathAlloc(alloc, ".");
+            defer alloc.free(cwd_path);
+            break :value try fs.path.join(alloc, &.{ cwd_path, buffer.target_path.? });
+        };
+    } else buffer.target_path.?;
 
     defer {
-        if (!mem.eql(u8, buffer.target_path.?, absolute_path)) alloc.free(absolute_path);
+        if (!mem.eql(u8, buffer.target_path.?, absolute_path)) {
+            alloc.free(absolute_path); //because absolute_path can be either the buffer path or heap allocated
+        }
     }
 
-    const file = try fs.createFileAbsolute(buffer.target_path.?, .{});
+    const file = fs.createFileAbsolute(absolute_path, .{}) catch |err| {
+        std.log.err("Invalid Path: {s}", .{absolute_path});
+        return err;
+    };
     defer file.close();
     const file_writer = file.writer();
     return file_writer.writeAll(buffer.data.items);

@@ -22,8 +22,12 @@ pub fn stringable(self: *Spacer) Stringable {
     return Stringable.from(self);
 }
 
-pub fn toString(self: *Spacer, alloc: Allocator) Allocator.Error![]const u8 {
-    const output_buffer = try alloc.alloc(u8, self.width);
-    @memset(output_buffer, ' ');
-    return output_buffer;
+pub fn toStringList(self: *Spacer, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
+    var output_line = try ArrayList(u8).initCapacity(alloc, self.width);
+    output_line.appendNTimesAssumeCapacity(' ', self.width);
+
+    var output_list = try ArrayList(ArrayList(u8)).initCapacity(alloc, 1);
+    output_list.appendAssumeCapacity(output_line);
+
+    return output_list;
 }

@@ -7,6 +7,8 @@ const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
 const lib = @import("lib");
+const Signal = lib.types.Signal;
+const InputEvent = lib.types.input.InputEvent;
 const Stringable = lib.interfaces.Stringable;
 const CursorContainer = lib.interfaces.CursorContainer;
 const Vec2 = lib.types.Vec2;
@@ -16,18 +18,19 @@ const Buffer = lib.types.Buffer;
 
 const TextWindow = @This();
 
-pub const Error = (error{
+const Error = error{
     NoSequenceValue,
-} || Buffer.Error);
+    FailedToRemoveFromBuffer,
+};
 
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
 cursor_position: Vec2,
 dimensions: Vec2,
-buffer: Buffer, //one dimensional because of how annoying newlines are
+buffer: *Buffer, //one dimensional because of how annoying newlines are
 allocator: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) TextWindow {
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: *Buffer) TextWindow {
     return TextWindow{
         .cursor_position = .{ .x = 0, .y = 0 },
         .dimensions = dimensions,
@@ -36,23 +39,66 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer) TextWindow {
     };
 }
 
-pub fn deinit(self: *TextWindow) void {
-    self.buffer.deinit();
-}
-
 ///Adds char to input buffer at cursor position and moves cursor foreward
-pub fn addCharToBuffer(self: *TextWindow, char: u8) Error!void {
+pub fn addCharToBuffer(self: *TextWindow, char: u8) (Buffer.Error)!void {
     const cursor_position = self.getCursorPositionIndex();
     try self.buffer.appendCharAtPosition(cursor_position, char);
     self.moveCursor(.{ .x = 1, .y = 0 });
 }
 
 ///Adds sequence text to input buffer at cursor position and moves cursor foreward
-pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) Error!void {
+pub fn addSequenceToBuffer(self: *TextWindow, sequence: ControlSequence) (Buffer.Error || Error)!void {
     const sequence_text = sequence.getValue() orelse return Error.NoSequenceValue;
     const cursor_position = self.getCursorPositionIndex();
     try self.buffer.appendSliceAtPosition(cursor_position, sequence_text);
     self.moveCursor(Vec2{ .x = intCast(i32, sequence_text.len), .y = 0 });
+}
+
+pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorContainer.Error)!void {
+    switch (event) {
+        .input => |char| {
+            self.addCharToBuffer(char) catch return CursorContainer.Error.FailedToProcessEvent;
+            return Signal.RedrawBuffer;
+        },
+        .control => |sequence| switch (sequence) {
+            ControlSequence.new_line => {
+                self.addSequenceToBuffer(sequence) catch |err| {
+                    log.err("{any}", .{err});
+                    return CursorContainer.Error.FailedToProcessEvent;
+                };
+                self.moveCursor(.{
+                    .x = -self.cursor_position.x,
+                    .y = 1,
+                });
+                return Signal.RedrawBuffer;
+            },
+            ControlSequence.backspace => {
+                self.deleteAtCursorPosition() catch |err| {
+                    log.err("{any}", .{err});
+                    return CursorContainer.Error.FailedToProcessEvent;
+                };
+                return Signal.RedrawBuffer;
+            },
+            .left => {
+                self.moveCursor(.{ .x = -1 });
+                return Signal.RedrawBuffer;
+            },
+            .right => {
+                self.moveCursor(.{ .x = 1 });
+                return Signal.RedrawBuffer;
+            },
+            .up => {
+                self.moveCursor(.{ .y = -1 });
+                return Signal.RedrawBuffer;
+            },
+            .down => {
+                self.moveCursor(.{ .y = 1 });
+                return Signal.RedrawBuffer;
+            },
+            .exit => return Signal.Exit,
+            else => return,
+        },
+    }
 }
 
 /// Returns the position of the cursor
@@ -157,7 +203,8 @@ pub fn deleteAtCursorPosition(self: *TextWindow) Error!void {
             _ = self.buffer.data.orderedRemove(cursor_index - 1);
             cursor_index -= 1;
         }
-        self.cursor_position = self.getCursorPositionFromIndex(cursor_index) catch return Error.FailedToRemoveFromBuffer;
+        self.cursor_position = self.getCursorPositionFromIndex(cursor_index) catch
+            return Error.FailedToRemoveFromBuffer;
         return;
     }
 
@@ -195,47 +242,51 @@ pub inline fn stringable(self: *TextWindow) Stringable {
     return Stringable.from(self);
 }
 
-pub fn toString(self: *TextWindow, alloc: Allocator) Allocator.Error![]const u8 {
-    const render_size = intCast(usize, self.dimensions.x * self.dimensions.y);
-    const output = try alloc.alloc(u8, render_size);
-    @memset(output, ' ');
+pub fn toStringList(self: *TextWindow, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
+    var output_list = try ArrayList(ArrayList(u8)).initCapacity(
+        alloc,
+        intCast(usize, self.dimensions.y),
+    );
 
-    // 0 represents the first segment, 1 the second and so on.
+    var line_sep_list = try self.buffer.getLineSepperatedList(self.allocator);
+    defer line_sep_list.deinit(self.allocator);
+
+    const lower_bound = self.getLowerViewBound();
+    const upper_bound = lower_bound.add(self.dimensions);
+
+    for (intCast(usize, lower_bound.y)..intCast(usize, upper_bound.y)) |row_num| {
+        if (line_sep_list.items.len <= row_num) break;
+
+        var line = line_sep_list.items[row_num];
+
+        //Line is empty in view but between filled lines
+        if (line.len <= intCast(usize, lower_bound.x)) {
+            output_list.appendAssumeCapacity(.empty);
+            continue;
+        }
+
+        const adjusted_line_len: usize = @min(line.len, intCast(usize, upper_bound.x));
+        line = line[intCast(usize, lower_bound.x)..adjusted_line_len];
+
+        var line_list = try ArrayList(u8).initCapacity(alloc, line.len);
+        line_list.appendSliceAssumeCapacity(line);
+        output_list.appendAssumeCapacity(line_list);
+    }
+
+    return output_list;
+}
+
+fn getLowerViewBound(self: *TextWindow) Vec2 {
+    // 0 is the first segment, 1 is the second and so on
     const view_segment: Vec2 = .{
         .x = @divTrunc(self.cursor_position.x, self.dimensions.x),
         .y = @divTrunc(self.cursor_position.y, self.dimensions.y),
     };
 
-    var line_sep_list = try self.buffer.getLineSepperatedList(self.allocator);
-    defer line_sep_list.deinit(self.allocator);
-
-    const lower_bound = Vec2{
+    return Vec2{
         .x = self.dimensions.x * view_segment.x,
         .y = self.dimensions.y * view_segment.y,
     };
-    const upper_bound = lower_bound.add(self.dimensions);
-
-    for (line_sep_list.items, 0..) |line, row_num| {
-        //Limits output to only viewable vertical section of text_buffer
-        if (row_num < intCast(usize, lower_bound.y)) continue;
-        if (row_num >= intCast(usize, upper_bound.y)) break;
-
-        for (line, 0..) |char, col_num| {
-            //Limits output to only viewable horizontal section of text_buffer
-            if (col_num < intCast(usize, lower_bound.x)) continue;
-            if (col_num >= intCast(usize, upper_bound.x)) break;
-
-            const char_pos = Vec2{
-                .x = intCast(i32, col_num),
-                .y = intCast(i32, row_num),
-            };
-
-            const char_index = getViewIndex(char_pos, lower_bound, self.dimensions);
-            output[char_index] = char;
-        }
-    }
-
-    return output;
 }
 
 inline fn getViewIndex(char_pos: Vec2, lower_bound: Vec2, dimensions: Vec2) usize {
@@ -255,15 +306,17 @@ pub inline fn getCursorPosition(self: *TextWindow) Vec2 {
 
 test "MemTest" {
     const alloc = std.testing.allocator;
-    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
-    defer t.deinit();
+    var buffer = Buffer.init(alloc);
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &buffer);
+    defer buffer.deinit();
     try t.addCharToBuffer('3');
     try t.addSequenceToBuffer(.new_line);
 }
 
 test "get cursor index" {
     const alloc = std.testing.allocator;
-    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
+    var buffer = Buffer.init(alloc);
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &buffer);
 
     //single char insertion
     try testing.expectEqual(0, t.getCursorPositionIndex());
@@ -284,13 +337,14 @@ test "get cursor index" {
     t.moveCursor(Vec2{ .x = 0, .y = 1 });
     try testing.expectEqual(2, t.getCursorPositionIndex());
 
-    t.deinit();
+    buffer.deinit();
 }
 
 test "inserting" {
     const alloc = std.testing.allocator;
-    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
-    defer t.deinit();
+    var buffer = Buffer.init(alloc);
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &buffer);
+    defer buffer.deinit();
 
     try t.addCharToBuffer('1');
 
@@ -309,8 +363,9 @@ test "inserting" {
 
 test "line sepperation" {
     const alloc = std.testing.allocator;
-    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
-    defer t.deinit();
+    var buffer = Buffer.init(alloc);
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &buffer);
+    defer buffer.deinit();
 
     try t.addCharToBuffer('1');
 
@@ -346,8 +401,9 @@ test "line sepperation" {
 
 test "line peek" {
     const alloc = std.testing.allocator;
-    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
-    defer t.deinit();
+    var buffer = Buffer.init(alloc);
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &buffer);
+    defer buffer.deinit();
 
     try t.addCharToBuffer('1');
 
@@ -366,8 +422,9 @@ test "line peek" {
 
 test "Remove char" {
     const alloc = std.testing.allocator;
-    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
-    defer t.deinit();
+    var buffer = Buffer.init(alloc);
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &buffer);
+    defer buffer.deinit();
 
     try t.addCharToBuffer('1');
 
@@ -394,8 +451,9 @@ test "Remove char" {
 
 test "Cursor Postion Index" {
     const alloc = std.testing.allocator;
-    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, Buffer.init(alloc));
-    defer t.deinit();
+    var buffer = Buffer.init(alloc);
+    var t = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &buffer);
+    defer buffer.deinit();
 
     try t.buffer.data.appendSlice(alloc, "abcde" ++ new_line_sequence);
     try t.buffer.data.appendSlice(alloc, "fg" ++ new_line_sequence);

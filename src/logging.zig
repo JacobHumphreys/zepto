@@ -8,7 +8,7 @@ const c = @cImport({
 
 var log_file: ?fs.File = null;
 
-pub fn init() !void {
+fn init() !void {
     var path_buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&path_buffer);
     const alloc = fba.allocator();
@@ -50,7 +50,12 @@ pub fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const lf = log_file orelse return;
+    const lf = value: {
+        break :value log_file orelse {
+            init() catch |err| @panic(@errorName(err));
+            break :value log_file.?;
+        };
+    };
     const writer = lf.writer();
 
     // Format and write the log message

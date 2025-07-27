@@ -2,150 +2,68 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
-const ArrayList = std.ArrayListUnmanaged;
 
 const lib = @import("lib");
 const types = lib.types;
 const Vec2 = types.Vec2;
 const InputEvent = types.input.InputEvent;
 const Signal = types.Signal;
-const ControlSequence = types.input.ControlSequence;
 const Buffer = types.Buffer;
-const Page = lib.interfaces.Page;
-const intCast = lib.casts.intCast;
+const AppInfo = lib.types.AppInfo;
 
 const ui = @import("ui.zig");
 const rendering = ui.rendering;
-const MainPage = ui.MainPage;
+const pages = ui.pages;
+const Page = pages.Page;
+const MainPage = pages.MainPage;
 
 const UIHandler = @This();
 
-current_page: MainPage,
+current_page: Page,
 alloc: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer) (Allocator.Error || ui.Error)!UIHandler {
-//    try rendering.enterAltScreen();
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
+    //    try rendering.enterAltScreen();
     try rendering.clearScreen();
 
-    var page = try MainPage.init(alloc, dimensions, buffer);
+    var page = try alloc.create(MainPage);
+    page.* = try MainPage.init(alloc, dimensions, buffer, app_info);
 
     try rendering.reRenderOutput(page.page(), alloc);
 
-    const cursor_parent = try page.getCursorParent();
-    try rendering.renderCursor(cursor_parent);
-
     return UIHandler{
         .alloc = alloc,
-        .current_page = page,
+        .current_page = page.page(),
     };
 }
 
 pub fn deinit(self: *UIHandler) void {
-//    rendering.exitAltScreen() catch |err| {
-//        std.log.err("{any}", .{err});
-//    };
+    //    rendering.exitAltScreen() catch |err| {
+    //        std.log.err("{any}", .{err});
+    //    };
     self.current_page.deinit();
+    self.alloc.destroy(self.current_page.main_page);
 }
 
-pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || ui.Error || Signal)!void {
-    switch (event) {
-        .input => |char| {
-            try self.current_page.text_window.addCharToBuffer(char);
-
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(
-                try self.current_page.getCursorParent(),
-            );
+pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || Signal)!void {
+    self.current_page.processEvent(event) catch |err| switch (err) {
+        Signal.RedrawBuffer => rendering.reRenderOutput(self.current_page, self.alloc) catch |e| {
+            std.log.err("{any}", .{e});
+            return Signal.Exit;
         },
-        .control => |sequence| {
-            return self.processControlSequence(sequence);
-        },
-    }
+        else => return err,
+    };
 }
 
-pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) void {
-    self.current_page.dimensions = dimensions;
+pub inline fn getOutputDimensions(self: *UIHandler) Vec2 {
+    return self.current_page.getDimensions();
 }
 
-pub fn processControlSequence(self: *UIHandler, sequence: ControlSequence) (Allocator.Error || ui.Error || Signal)!void {
-    switch (sequence) {
-        .backspace => {
-            try self.current_page.text_window.deleteAtCursorPosition();
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(try self.current_page.getCursorParent());
-        },
-
-        .exit => return Signal.Exit,
-
-        .new_line => {
-            try self.current_page.text_window.addSequenceToBuffer(sequence);
-
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-
-            const cursor_pos = cursor_container.getCursorPosition();
-
-            cursor_container.moveCursor(.{ .x = -cursor_pos.x, .y = 1 });
-
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-
-        .left => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .x = -1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-        .right => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .x = 1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-        .up => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .y = -1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-        .down => {
-            const cursor_parent = try self.current_page.getCursorParent();
-            const cursor_container = cursor_parent.cursor_container.?;
-            cursor_container.moveCursor(.{ .y = 1 });
-            try rendering.reRenderOutput(
-                self.current_page.page(),
-                self.alloc,
-            );
-            return rendering.renderCursor(cursor_parent);
-        },
-
-        else => return,
-    }
+pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error || ui.Error)!void {
+    self.current_page.setOutputDimensions(dimensions);
+    try rendering.reRenderOutput(self.current_page, self.alloc);
 }
 
-pub fn getCurrentBuffer(self: *UIHandler) Buffer {
+pub inline fn getCurrentBuffer(self: *UIHandler) *Buffer {
     return self.current_page.getCurrentBuffer();
 }

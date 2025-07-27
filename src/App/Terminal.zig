@@ -40,18 +40,17 @@ fn setStateFlags(initial_state: termios, value: bool) termios {
 
     new_state.iflag = iflag;
     new_state.lflag = lflag;
-    new_state.oflag = oflag;
     return new_state;
 }
 
-pub fn setBtyeRead(self: *Terminal, timeout: u8, minimumBtyes: u8) void {
+pub fn setByteRead(self: *Terminal, timeout: u8, minimumBtyes: u8) void {
     self.state.cc[@intFromEnum(std.os.linux.V.TIME)] = timeout;
     self.state.cc[@intFromEnum(std.os.linux.V.MIN)] = minimumBtyes;
 }
 
 pub fn enableRawMode(self: *Terminal) Error!void {
     self.state = setStateFlags(self.state, false);
-    self.setBtyeRead(0, 1);
+    self.setByteRead(0, 0);
     if (linux.tcsetattr(linux.STDIN_FILENO, linux.TCSA.FLUSH, &self.state) != 0) {
         return Error.FailedToSetTermios;
     }
