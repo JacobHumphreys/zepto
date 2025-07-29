@@ -28,8 +28,17 @@ pub fn getInputEvent(read_buffer: []u8) Error!InputEvent {
 pub fn parseEvent(input: []u8) InputEvent {
     if (input.len == 1) {
         switch (input[0]) {
+            getControlCombination('t') => {
+                return InputEvent{ .control = ControlSequence.ctrl_t };
+            },
+            getControlCombination('g') => {
+                return InputEvent{ .control = ControlSequence.ctrl_g };
+            },
             getControlCombination('x') => {
-                return InputEvent{ .control = ControlSequence.exit };
+                return InputEvent{ .control = ControlSequence.ctrl_x };
+            },
+            getControlCombination('c') => {
+                return InputEvent{ .control = ControlSequence.ctrl_c };
             },
             control_code.cr,
             => {

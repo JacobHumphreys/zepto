@@ -10,13 +10,16 @@ pub const InputEvent = union(enum) {
 
 // Essentially just a tagged union but using an internal enum map because strings
 pub const ControlSequence = enum {
-    new_line,
+    ctrl_c,
+    ctrl_g,
+    ctrl_t,
+    ctrl_x,
     left,
     right,
     up,
     down,
+    new_line,
     backspace,
-    exit,
     clear_screen,
     enter_alt_screen,
     exit_alt_screen,
