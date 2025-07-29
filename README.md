@@ -1,6 +1,6 @@
 A simple black-box clone of the pico text editor written from scratch using zig.
 
-![demo]([https://github.com/JacobHumphreys/zepto/assets/demo_photo.png](https://github.com/JacobHumphreys/zepto/blob/main/assets/demo_hoto.png))
+![demo](https://github.com/JacobHumphreys/zepto/assets/demo_photo.png](https://github.com/JacobHumphreys/zepto/blob/main/assets/demo_hoto.png)
 
 ## Motivation
 As an exercise of writing slightly more complex software in zig, I decided to attempt to create
