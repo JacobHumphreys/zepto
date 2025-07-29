@@ -1,5 +1,7 @@
 A simple black-box clone of the pico text editor written from scratch using zig.
 
+![demo](https://github.com/JacobHumphreys/zepto/assets/demo_photo.png)
+
 ## Motivation
 As an exercise of writing slightly more complex software in zig, I decided to attempt to create
 a text editor without using any external libraries. This project makes use of libc and the zig 
