@@ -95,7 +95,7 @@ pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorConta
                 self.moveCursor(.{ .y = 1 });
                 return Signal.RedrawBuffer;
             },
-            .exit => return Signal.Exit,
+            .ctrl_x => return Signal.Exit,
             else => return,
         },
     }

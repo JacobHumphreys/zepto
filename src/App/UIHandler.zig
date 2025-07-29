@@ -23,13 +23,13 @@ current_page: Page,
 alloc: Allocator,
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
-    //    try rendering.enterAltScreen();
+    try rendering.enterAltScreen();
     try rendering.clearScreen();
 
     var page = try alloc.create(MainPage);
     page.* = try MainPage.init(alloc, dimensions, buffer, app_info);
 
-    try rendering.reRenderOutput(page.page(), alloc);
+    try rendering.reRenderOutput(alloc, page.page());
 
     return UIHandler{
         .alloc = alloc,
@@ -38,18 +38,23 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_in
 }
 
 pub fn deinit(self: *UIHandler) void {
-    //    rendering.exitAltScreen() catch |err| {
-    //        std.log.err("{any}", .{err});
-    //    };
+    rendering.exitAltScreen() catch |err| {
+        std.log.err("{any}", .{err});
+    };
     self.current_page.deinit();
     self.alloc.destroy(self.current_page.main_page);
 }
 
 pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || Signal)!void {
     self.current_page.processEvent(event) catch |err| switch (err) {
-        Signal.RedrawBuffer => rendering.reRenderOutput(self.current_page, self.alloc) catch |e| {
-            std.log.err("{any}", .{e});
-            return Signal.Exit;
+        Signal.RedrawBuffer => {
+            rendering.reRenderOutput(self.alloc, self.current_page) catch |e| switch (e) {
+                Allocator.Error.OutOfMemory => |alloc_err| return alloc_err,
+                else => {
+                    std.log.err("{any}", .{e});
+                    return Signal.Exit;
+                },
+            };
         },
         else => return err,
     };
@@ -61,7 +66,7 @@ pub inline fn getOutputDimensions(self: *UIHandler) Vec2 {
 
 pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error || ui.Error)!void {
     self.current_page.setOutputDimensions(dimensions);
-    try rendering.reRenderOutput(self.current_page, self.alloc);
+    try rendering.reRenderOutput(self.alloc, self.current_page);
 }
 
 pub inline fn getCurrentBuffer(self: *UIHandler) *Buffer {

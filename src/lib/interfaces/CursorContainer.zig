@@ -17,15 +17,15 @@ const VTable = struct {
     processEvent: *const fn (*anyopaque, InputEvent) (Signal || Error)!void,
 };
 
-pub fn getCursorPosition(self: CursorContainer) Vec2 {
+pub inline fn getCursorPosition(self: CursorContainer) Vec2 {
     return self.vtable.getCursorPosition(self.ptr);
 }
 
-pub fn moveCursor(self: CursorContainer, offset: Vec2) void {
+pub inline fn moveCursor(self: CursorContainer, offset: Vec2) void {
     self.vtable.moveCursor(self.ptr, offset);
 }
 
-pub fn processEvent(self: CursorContainer, event: InputEvent) (Signal || Error)!void {
+pub inline fn processEvent(self: CursorContainer, event: InputEvent) (Signal || Error)!void {
     return self.vtable.processEvent(self.ptr, event);
 }
 
@@ -34,6 +34,7 @@ pub fn processEvent(self: CursorContainer, event: InputEvent) (Signal || Error)!
 ///
 ///     fn getCursorPosition(*Self) Vec2
 ///     fn moveCursor(*Self, Vec2) void
+///     fn processEvent(*Self, event: InputEvent) (Signal || CursorContainer.Error)!void
 pub fn from(selfPtr: anytype) CursorContainer {
     const Tptr = @TypeOf(selfPtr);
     const generator = struct {

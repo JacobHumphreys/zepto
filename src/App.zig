@@ -19,7 +19,6 @@ const App = @This();
 
 terminal: Terminal,
 ui_handler: UIHandler,
-alloc: Allocator,
 
 pub fn init(alloc: Allocator, app_info: AppInfo) !App {
     var terminal = try Terminal.init();
@@ -41,7 +40,6 @@ pub fn init(alloc: Allocator, app_info: AppInfo) !App {
     return App{
         .terminal = terminal,
         .ui_handler = ui_handler,
-        .alloc = alloc,
     };
 }
 
@@ -50,7 +48,7 @@ pub fn deinit(self: *App) !void {
     try self.terminal.disableRawMode();
 }
 
-pub fn run(self: *App) Signal!void {
+pub fn run(self: *App, alloc: Allocator) Signal!void {
     paceFrames();
 
     const window_size = Terminal.getWindowSize();
@@ -69,7 +67,7 @@ pub fn run(self: *App) Signal!void {
 
     self.ui_handler.processEvent(event) catch |err| switch (err) {
         Signal.SaveBuffer => {
-            files.exportFileData(self.ui_handler.getCurrentBuffer().*, self.alloc) catch |e|{
+            files.exportFileData(self.ui_handler.getCurrentBuffer().*, alloc) catch |e| {
                 log.err("Could Not Export File Data: {any}", .{e});
             };
             return Signal.Exit;

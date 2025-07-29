@@ -24,12 +24,14 @@ pub const Error = error{
 var std_out = io.getStdOut();
 
 /// Causes full page redraw line by line. ReRenders text and cursor
-pub fn reRenderOutput(page: Page, alloc: Allocator) (Allocator.Error || Error)!void {
-    const screen_buffer_2d = try get2dSceenBuffer(alloc, page);
-    defer alloc.free(screen_buffer_2d);
+pub fn reRenderOutput(alloc: Allocator, page: Page) (Allocator.Error || Error)!void {
+    var render_arena = ArenaAllocator.init(alloc);
+    defer render_arena.deinit();
+    const render_alloc = render_arena.allocator();
 
-    var print_buffer = try flattenScreenBuffer(alloc, screen_buffer_2d, page);
-    defer print_buffer.deinit(alloc);
+    const screen_buffer_2d = try get2dSceenBuffer(render_alloc, page);
+
+    const print_buffer = try flattenScreenBuffer(render_alloc, screen_buffer_2d, page);
 
     std_out.writer().print(
         "{s}{s}{s}",
@@ -48,20 +50,15 @@ pub fn reRenderOutput(page: Page, alloc: Allocator) (Allocator.Error || Error)!v
 fn get2dSceenBuffer(alloc: Allocator, page: Page) Allocator.Error![]ArrayList(u8) {
     const page_dimensions = page.getDimensions();
 
-    var page_elements = try page.getElements(alloc);
-    defer page_elements.deinit(alloc);
+    const page_elements = try page.getElements(alloc);
 
     var screen_buffer_2d = try alloc.alloc(ArrayList(u8), intCast(usize, page_dimensions.y));
     @memset(screen_buffer_2d, ArrayList(u8).empty);
 
     for (page_elements.items) |element| {
-        var arena = ArenaAllocator.init(alloc);
-        defer arena.deinit();
-        const arena_alloc = arena.allocator();
-
         if (!element.is_visible) continue;
 
-        const element_output = try element.stringable.toStringList(arena_alloc);
+        const element_output = try element.stringable.toStringList(alloc);
 
         for (element_output.items, 0..) |line, line_num| {
             const line_i = line_num + intCast(usize, element.position.y);
@@ -80,9 +77,7 @@ fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page)
         intCast(usize, 2 * dimensions.x * dimensions.y),
     );
 
-    for (buffer_2d, 0..) |line, i| {
-        defer buffer_2d[i].deinit(alloc);
-
+    for (buffer_2d) |line| {
         //Fills Empty lines
         if (line.items.len == 0) {
             print_buffer.appendNTimesAssumeCapacity(' ', intCast(usize, dimensions.x));
@@ -151,7 +146,7 @@ pub fn clearScreen() Error!void {
     };
 }
 
-pub fn enterAltScreen() !void {
+pub fn enterAltScreen() Error!void {
     const enter_screen = ControlSequence.enter_alt_screen.getValue().?;
     std_out.writer().print(
         "{s}",
