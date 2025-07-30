@@ -274,7 +274,42 @@ pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) Signal!void {
                 return Signal.RedrawBuffer;
             }
         },
-        else => return,
+        .edit_text => {
+            if (event == .input) return;
+            switch (event.control) {
+                .ctrl_c => {
+                    @panic("TODO: Cursor Pos");
+                },
+                .ctrl_g => {
+                    @panic("TODO: Help Menu");
+                },
+                .ctrl_j => {
+                    @panic("TODO: Justify");
+                },
+                .ctrl_k => {
+                    @panic("TODO: Cut Text");
+                },
+                .ctrl_o => {
+                    @panic("TODO: WriteOut");
+                },
+                .ctrl_r => {
+                    @panic("TODO: Read File");
+                },
+                .ctrl_t => {
+                    @panic("TODO: To Spell");
+                },
+                .ctrl_u => {
+                    @panic("TODO: UnCut Text");
+                },
+                .ctrl_v => {
+                    @panic("TODO: Next Pg");
+                },
+                .ctrl_w => {
+                    @panic("TODO: Where is");
+                },
+                else => return,
+            }
+        },
     }
 }
 
