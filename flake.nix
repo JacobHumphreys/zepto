@@ -14,36 +14,11 @@
           name = "clang-zig-shell";
 
           buildInputs = with pkgs; [
-            libGL
-            xorg.libX11
-            xorg.libXrandr
-            xorg.libXi
-            xorg.libXcursor
-            xorg.libXinerama
-            xorg.libXext
-            xorg.libxcb
-            xorg.libXfixes
-            mesa
-            vulkan-loader # optional
             zig
-            rocmPackages.clang
-            gcc
           ];
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-            pkgs.gcc
-            pkgs.raylib
-            pkgs.libGL
-            pkgs.xorg.libX11
-            pkgs.xorg.libXrandr
-            pkgs.xorg.libXi
-            pkgs.xorg.libXcursor
-            pkgs.xorg.libXinerama
-            pkgs.xorg.libXext
-            pkgs.xorg.libxcb
-            pkgs.xorg.libXfixes
-            pkgs.mesa
-            pkgs.vulkan-loader
+            pkgs.zig
           ];
 
           shellHook = ''
