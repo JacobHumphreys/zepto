@@ -16,24 +16,27 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root_unit_tests.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{
+                .name = "lib",
+                .module = lib_mod,
+            },
+        },
     });
 
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{
+                .name = "lib",
+                .module = lib_mod,
+            },
+        },
     });
 
-    exe_mod.addImport("lib", lib_mod);
     root_unit_tests_mod.addImport("lib", lib_mod);
-
-    const lib = b.addLibrary(.{
-        .linkage = .static,
-        .name = "zepto",
-        .root_module = lib_mod,
-    });
-
-    b.installArtifact(lib);
 
     const exe = b.addExecutable(.{
         .name = "zepto",
