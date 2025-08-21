@@ -106,6 +106,9 @@ pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorConta
                 self.cutLine();
                 return Signal.RedrawBuffer;
             },
+            .ctrl_o => {
+                return Signal.SaveBuffer;
+            },
             .ctrl_u => {
                 self.buffer.data.insertSlice(
                     self.buffer.alloc,

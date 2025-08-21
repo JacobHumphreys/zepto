@@ -49,6 +49,7 @@ const PageState = enum {
     edit_text,
     prompt_save,
     get_buff_path,
+    closed,
 };
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
@@ -186,9 +187,12 @@ fn switchState(self: *MainPage, new_state: PageState) void {
                 &getBottomBar2Elements(new_state),
             );
         },
+        else => {},
     }
     self.state = new_state;
 }
+
+var queue_exit = false;
 
 pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!void {
     const cursor_parent = try self.getCursorParent();
@@ -217,6 +221,16 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
                     return Signal.SaveBuffer;
                 },
                 PageState.prompt_save => try self.updatePage(),
+                else => return @errorCast(err),
+            }
+        },
+
+        Signal.SaveBuffer => {
+            if (self.current_buffer.target_path) |_| {
+                return Signal.SaveBuffer;
+            } else {
+                self.switchState(.get_buff_path);
+                return Signal.RedrawBuffer;
             }
         },
 
@@ -245,12 +259,16 @@ pub fn updatePage(self: *MainPage) (Allocator.Error || Signal)!void {
             const answer = self.elements.bottom_prompt.input.items;
             if (answer.len < 1) return;
             if (std.ascii.toLower(answer[0]) == 'y') {
+                queue_exit = true;
                 self.switchState(.get_buff_path);
                 if (self.current_buffer.target_path != null) return Signal.SaveBuffer;
             } else if (std.ascii.toLower(answer[0]) == 'n') {
                 return Signal.Exit;
             }
             return Signal.RedrawBuffer;
+        },
+        .closed => {
+            return Signal.Exit;
         },
         else => {},
     }
@@ -309,6 +327,9 @@ pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) Signal!void {
                 },
                 else => return,
             }
+        },
+        .closed => {
+            return Signal.Exit;
         },
     }
 }
@@ -488,6 +509,14 @@ fn getBottomBar1Elements(state: PageState) [6]renderables.Ribbon.Element {
             .{ .text = "" },
             .{ .text = "" },
         },
+        .closed => .{
+            .{ .text = "" },
+            .{ .text = "" },
+            .{ .text = "" },
+            .{ .text = "" },
+            .{ .text = "" },
+            .{ .text = "" },
+        },
     };
 }
 
@@ -562,6 +591,14 @@ fn getBottomBar2Elements(state: PageState) [6]renderables.Ribbon.Element {
                 .color_range = .{ .x = 0, .y = 3 },
                 .text = "TAB Complete",
             },
+            .{ .text = "" },
+            .{ .text = "" },
+            .{ .text = "" },
+            .{ .text = "" },
+        },
+        .closed => .{
+            .{ .text = "" },
+            .{ .text = "" },
             .{ .text = "" },
             .{ .text = "" },
             .{ .text = "" },
