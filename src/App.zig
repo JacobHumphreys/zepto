@@ -59,12 +59,15 @@ pub fn run(self: *App, alloc: Allocator) Signal!void {
         };
     }
 
+    log.info("window_size", .{});
+
     var input_buffer: [8]u8 = undefined;
     const event = input.getInputEvent(&input_buffer) catch |err| {
         log.err("{any}", .{err});
         return Signal.Exit;
     };
 
+    log.info("input", .{});
     self.ui_handler.processEvent(event) catch |err| switch (err) {
         Signal.SaveBuffer => {
             files.exportFileData(self.ui_handler.getCurrentBuffer().*, alloc) catch |e| {
@@ -77,6 +80,7 @@ pub fn run(self: *App, alloc: Allocator) Signal!void {
             return Signal.Exit;
         },
     };
+    log.info("end", .{});
 }
 
 const max_refresh = @as(i64, @intFromFloat(1.0 / 200.0 * 1000));

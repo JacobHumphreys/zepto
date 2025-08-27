@@ -15,11 +15,11 @@
 
           buildInputs = with pkgs; [
             zig_0_15
+            zls
+            lldb_21
           ];
 
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-            pkgs.zig_0_15
-          ];
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.zig_0_15 ];
 
           shellHook = ''
             echo "🔧 Zepto dev shell (Nixpkgs Unstable)"

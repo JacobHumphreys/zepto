@@ -1,5 +1,5 @@
 const std = @import("std");
-const io = std.io;
+const fs = std.fs;
 const control_code = std.ascii.control_code;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -21,7 +21,8 @@ pub const Error = error{
     FailedToExitAltView,
 };
 
-var std_out = io.getStdOut();
+var std_out = fs.File.stdout();
+var std_out_buff: [2048]u8 = undefined;
 
 /// Causes full page redraw line by line. ReRenders text and cursor
 pub fn reRenderOutput(alloc: Allocator, page: Page) (Allocator.Error || Error)!void {
@@ -33,7 +34,9 @@ pub fn reRenderOutput(alloc: Allocator, page: Page) (Allocator.Error || Error)!v
 
     const print_buffer = try flattenScreenBuffer(render_alloc, screen_buffer_2d, page);
 
-    std_out.writer().print(
+    var std_out_writer = std_out.writer(&std_out_buff).interface;
+
+    std_out_writer.print(
         "{s}{s}{s}",
         .{
             ControlSequence.getValue(.hide_cursor).?,
@@ -122,7 +125,8 @@ fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
         ) catch {
             return Error.FailedToMoveCursor;
         };
-    std_out.writer().print("{s}", .{cursor_move}) catch {
+    var std_out_writer = std_out.writer(&std_out_buff).interface;
+    std_out_writer.print("{s}", .{cursor_move}) catch {
         return Error.FailedToWriteOutput;
     };
 }
@@ -138,7 +142,8 @@ fn getScreenSpaceCursorPosition(internal_position: Vec2) Vec2 {
 
 pub fn clearScreen() Error!void {
     const clear_screen = ControlSequence.getValue(.clear_screen).?;
-    std_out.writer().print(
+    var std_out_writer = std_out.writer(&std_out_buff).interface;
+    std_out_writer.print(
         "{s}",
         .{clear_screen},
     ) catch {
@@ -148,7 +153,8 @@ pub fn clearScreen() Error!void {
 
 pub fn enterAltScreen() Error!void {
     const enter_screen = ControlSequence.enter_alt_screen.getValue().?;
-    std_out.writer().print(
+    var std_out_writer = std_out.writer(&std_out_buff).interface;
+    std_out_writer.print(
         "{s}",
         .{enter_screen},
     ) catch {
@@ -158,7 +164,8 @@ pub fn enterAltScreen() Error!void {
 
 pub fn exitAltScreen() !void {
     const exit_screen = ControlSequence.exit_alt_screen.getValue().?;
-    std_out.writer().print(
+    var std_out_writer = std_out.writer(&std_out_buff).interface;
+    std_out_writer.print(
         "{s}",
         .{exit_screen},
     ) catch {

@@ -6,7 +6,9 @@ const c = @cImport({
     @cInclude("time.h");
 });
 
-var log_file: ?fs.File = null;
+pub var log_file: ?fs.File = null;
+var log_file_buff: [1024]u8 = undefined;
+var writer: ?std.Io.Writer = null;
 
 fn init() !void {
     var path_buffer: [1024]u8 = undefined;
@@ -17,7 +19,8 @@ fn init() !void {
     const time_stamp = try getTimeStamp(alloc);
     const log_name = try std.mem.join(alloc, "", &.{ time_stamp, ".log" });
 
-    log_file = try log_dir.createFile(log_name, fs.File.CreateFlags{});
+    log_file = try log_dir.createFile(log_name, .{});
+    writer = log_file.?.writer(&log_file_buff).interface;
 }
 
 fn getLogDir(alloc: Allocator) !fs.Dir {
@@ -40,7 +43,7 @@ fn getTimeStamp(alloc: Allocator) ![]const u8 {
     _ = c.time(&now);
     const time_info = c.localtime(&now);
     const date = c.asctime(time_info);
-    const time_stamp = try std.fmt.allocPrintZ(alloc, "{s}", .{date});
+    const time_stamp = try std.fmt.allocPrint(alloc, "{s}", .{date});
     return time_stamp[0 .. time_stamp.len - 1]; //remove trailing newLine
 }
 
@@ -50,16 +53,13 @@ pub fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    const lf = value: {
-        break :value log_file orelse {
-            init() catch |err| @panic(@errorName(err));
-            break :value log_file.?;
-        };
+    _ = log_file orelse value: {
+        init() catch |err| @panic(@errorName(err));
+        break :value log_file.?;
     };
-    const writer = lf.writer();
-
     // Format and write the log message
-    _ = writer.print("[{s}] {s}: ", .{ @tagName(level), @tagName(scope) }) catch return;
-    _ = writer.print(format, args) catch return;
-    _ = writer.writeAll("\n") catch return;
+    _ = writer.?.print("[{s}] {s}: ", .{ @tagName(level), @tagName(scope) }) catch |err| @panic(@errorName(err));
+    _ = writer.?.print(format, args) catch |err| @panic(@errorName(err));
+    writer.?.flush() catch |err| @panic(@errorName(err));
+    _ = writer.?.writeAll("\n") catch |err| @panic(@errorName(err));
 }
