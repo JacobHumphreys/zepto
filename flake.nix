@@ -14,11 +14,11 @@
           name = "clang-zig-shell";
 
           buildInputs = with pkgs; [
-            zig
+            zig_0_15
           ];
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-            pkgs.zig
+            pkgs.zig_0_15
           ];
 
           shellHook = ''
