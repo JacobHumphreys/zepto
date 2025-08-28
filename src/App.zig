@@ -59,6 +59,8 @@ pub fn run(self: *App, alloc: Allocator) Signal!void {
         };
     }
 
+    log.info("window_size", .{});
+
     var input_buffer: [8]u8 = undefined;
     const event = input.getInputEvent(&input_buffer) catch |err| {
         log.err("{any}", .{err});
