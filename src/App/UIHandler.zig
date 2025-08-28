@@ -23,7 +23,7 @@ current_page: Page,
 alloc: Allocator,
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
-    try rendering.enterAltScreen();
+//    try rendering.enterAltScreen();
     try rendering.clearScreen();
 
     var page = try alloc.create(MainPage);
@@ -38,9 +38,9 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_in
 }
 
 pub fn deinit(self: *UIHandler) void {
-    rendering.exitAltScreen() catch |err| {
-        std.log.err("{any}", .{err});
-    };
+//    rendering.exitAltScreen() catch |err| {
+//        std.log.err("{any}", .{err});
+//    };
     self.current_page.deinit();
     self.alloc.destroy(self.current_page.main_page);
 }

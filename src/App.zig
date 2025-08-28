@@ -59,6 +59,8 @@ pub fn run(self: *App, alloc: Allocator) Signal!void {
         };
     }
 
+    log.info("window_size", .{});
+
     var input_buffer: [8]u8 = undefined;
     const event = input.getInputEvent(&input_buffer) catch |err| {
         log.err("{any}", .{err});
@@ -70,7 +72,6 @@ pub fn run(self: *App, alloc: Allocator) Signal!void {
             files.exportFileData(self.ui_handler.getCurrentBuffer().*, alloc) catch |e| {
                 log.err("Could Not Export File Data: {any}", .{e});
             };
-            return Signal.Exit;
         },
         Signal.Exit => return Signal.Exit,
         else => {

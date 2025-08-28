@@ -25,6 +25,12 @@ const Error = error{
 
 const new_line_sequence = ControlSequence.new_line.getValue().?;
 
+pub const copy_buffer_size = 4096;
+var copy_buffer: struct {
+    memory_region: [copy_buffer_size]u8 = undefined,
+    copy_slice: []u8 = &.{},
+} = .{};
+
 cursor_position: Vec2,
 dimensions: Vec2,
 buffer: *Buffer, //one dimensional because of how annoying newlines are
@@ -61,7 +67,7 @@ pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorConta
             return Signal.RedrawBuffer;
         },
         .control => |sequence| switch (sequence) {
-            ControlSequence.new_line => {
+            .new_line => {
                 self.addSequenceToBuffer(sequence) catch |err| {
                     log.err("{any}", .{err});
                     return CursorContainer.Error.FailedToProcessEvent;
@@ -72,7 +78,7 @@ pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorConta
                 });
                 return Signal.RedrawBuffer;
             },
-            ControlSequence.backspace => {
+            .backspace => {
                 self.deleteAtCursorPosition() catch |err| {
                     log.err("{any}", .{err});
                     return CursorContainer.Error.FailedToProcessEvent;
@@ -96,8 +102,73 @@ pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorConta
                 return Signal.RedrawBuffer;
             },
             .ctrl_x => return Signal.Exit,
+            .ctrl_k => {
+                self.cutLine();
+                return Signal.RedrawBuffer;
+            },
+            .ctrl_o => {
+                return Signal.SaveBuffer;
+            },
+            .ctrl_u => {
+                self.buffer.data.insertSlice(
+                    self.buffer.alloc,
+                    self.getCursorPositionIndex(),
+                    copy_buffer.copy_slice,
+                ) catch |err| {
+                    log.err("{any}", .{err});
+                };
+                self.cursor_position.x = intCast(i32, copy_buffer.copy_slice.len);
+                return Signal.RedrawBuffer;
+            },
             else => return,
         },
+    }
+}
+
+/// Removes the data from the current line and back shifts the remaining_data in bulk
+fn cutLine(self: *TextWindow) void {
+    const cursor_index = self.getCursorPositionIndex();
+    const line_start = if (mem.lastIndexOf(u8, self.buffer.data.items[0..cursor_index], "\n")) |i|
+        i + 1
+    else
+        0;
+
+    const line_end = if (mem.indexOf(u8, self.buffer.data.items[cursor_index..], "\n")) |i|
+        i + cursor_index
+    else
+        self.buffer.data.items.len;
+
+    const line = self.buffer.data.items[line_start..line_end];
+    copy_buffer.copy_slice = copy_buffer.memory_region[0..line.len];
+    @memcpy(copy_buffer.copy_slice, line);
+
+    data_back_copy: {
+        self.cursor_position.x = 0;
+        if (line_end >= self.buffer.data.items.len) {
+            self.buffer.data.items.len = line_start;
+            break :data_back_copy;
+        }
+
+        var remaining_data = self.buffer.data.items[line_end + 1 ..];
+
+        var move_buffer: [copy_buffer_size]u8 = undefined;
+
+        const new_len = line_start + remaining_data.len;
+
+        while (remaining_data.len > 0) {
+            const move_len = @min(move_buffer.len, remaining_data.len);
+            @memcpy(
+                move_buffer[0..move_len],
+                remaining_data[0..move_len],
+            );
+            remaining_data = remaining_data[move_len..];
+            @memcpy(
+                self.buffer.data.items[line_start .. line_start + move_len],
+                move_buffer[0..move_len],
+            );
+        }
+
+        self.buffer.data.items.len = new_len;
     }
 }
 
@@ -480,4 +551,41 @@ test "Cursor Postion Index" {
     t.cursor_position = .{ .x = 0, .y = 2 };
     position = try t.getCursorPositionFromIndex(t.getCursorPositionIndex());
     try testing.expectEqualDeep(t.cursor_position, position);
+}
+
+test "cut/uncut buffer" {
+    const alloc = testing.allocator;
+
+    var test_buffer = Buffer.init(alloc);
+    var test_window = TextWindow.init(alloc, Vec2{ .x = 100, .y = 100 }, &test_buffer);
+    defer test_buffer.deinit();
+
+    try test_buffer.appendSliceAtPosition(0, "this is a test\n this is line two\nthis is line three");
+    test_window.moveCursor(.{ .x = 18, .y = 1 });
+
+    try testing.expectEqual(
+        Signal.RedrawBuffer,
+        test_window.processEvent(.{ .control = .ctrl_k }),
+    );
+
+    try testing.expectEqualStrings(
+        "this is a test\nthis is line three",
+        test_buffer.data.items,
+    );
+    test_window.cursor_position = .{ .x = 0, .y = 1 };
+
+    try testing.expectEqual(
+        Signal.RedrawBuffer,
+        test_window.processEvent(.{ .control = .new_line }),
+    );
+
+    try testing.expectEqualStrings(
+        "this is a test\n\nthis is line three",
+        test_buffer.data.items,
+    );
+
+    try testing.expectEqual(
+        Signal.RedrawBuffer,
+        test_window.processEvent(.{ .control = .ctrl_k }),
+    );
 }

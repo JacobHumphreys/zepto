@@ -2,8 +2,7 @@ const std = @import("std");
 const ascii = std.ascii;
 const control_code = ascii.control_code;
 const File = std.fs.File;
-const io = std.io;
-const Reader = std.fs.File.Reader;
+const Io = std.Io;
 
 const lib = @import("lib");
 const ControlSequence = lib.types.input.ControlSequence;
@@ -13,8 +12,9 @@ pub const Error = error{
     FetchingError,
 };
 
-const std_in: File = std.io.getStdIn();
-var std_in_reader: Reader = std_in.reader();
+const std_in: File = std.fs.File.stdin();
+var std_in_buff: [1024]u8 = undefined;
+var std_in_reader = std_in.reader(&std_in_buff);
 
 /// Get next InputEvent struct representing user input
 pub fn getInputEvent(read_buffer: []u8) Error!InputEvent {
@@ -27,36 +27,35 @@ pub fn getInputEvent(read_buffer: []u8) Error!InputEvent {
 
 pub fn parseEvent(input: []u8) InputEvent {
     if (input.len == 1) {
-        switch (input[0]) {
-            getControlCombination('t') => {
-                return InputEvent{ .control = ControlSequence.ctrl_t };
-            },
-            getControlCombination('g') => {
-                return InputEvent{ .control = ControlSequence.ctrl_g };
-            },
-            getControlCombination('x') => {
-                return InputEvent{ .control = ControlSequence.ctrl_x };
-            },
-            getControlCombination('c') => {
-                return InputEvent{ .control = ControlSequence.ctrl_c };
-            },
-            control_code.cr,
-            => {
-                return InputEvent{ .control = ControlSequence.new_line };
-            },
-            control_code.del => {
-                return InputEvent{ .control = .backspace };
-            },
-            else => |char| {
-                if (ascii.isPrint(char))
-                    return InputEvent{ .input = char }
-                else
-                    return InputEvent{ .control = .unknown };
-            },
-        }
+        return inputEventFromChar(input[0]);
     }
 
     return InputEvent{ .control = ControlSequence.from(input) };
+}
+
+fn inputEventFromChar(char: u8) InputEvent {
+    return switch (char) {
+        getControlCombination('c') => InputEvent{ .control = .ctrl_c },
+        getControlCombination('g') => InputEvent{ .control = .ctrl_g },
+        getControlCombination('j') => InputEvent{ .control = .ctrl_j },
+        getControlCombination('k') => InputEvent{ .control = .ctrl_k },
+        getControlCombination('o') => InputEvent{ .control = .ctrl_o },
+        getControlCombination('r') => InputEvent{ .control = .ctrl_r },
+        getControlCombination('t') => InputEvent{ .control = .ctrl_t },
+        getControlCombination('u') => InputEvent{ .control = .ctrl_u },
+        getControlCombination('v') => InputEvent{ .control = .ctrl_v },
+        getControlCombination('w') => InputEvent{ .control = .ctrl_w },
+        getControlCombination('x') => InputEvent{ .control = .ctrl_x },
+        getControlCombination('y') => InputEvent{ .control = .ctrl_y },
+        control_code.cr => InputEvent{ .control = ControlSequence.new_line },
+        control_code.del => InputEvent{ .control = .backspace },
+        else => {
+            if (ascii.isPrint(char))
+                return InputEvent{ .input = char }
+            else
+                return InputEvent{ .control = .unknown };
+        },
+    };
 }
 
 ///Returns character equivilent to user input of ctrl+char
@@ -65,8 +64,11 @@ fn getControlCombination(char: u8) u8 {
 }
 
 ///Used to get next string of characters or characters read from stdin
-pub fn getNextInput(read_buffer: []u8) Reader.NoEofError![]u8 {
-    const input_len = try std_in_reader.read(read_buffer);
+pub fn getNextInput(read_buffer: []u8) Io.Reader.Error![]u8 {
+    const input_len = std_in_reader.read(read_buffer) catch |err| switch (err) {
+        Io.Reader.Error.EndOfStream => return read_buffer[0..1],
+        else => return err,
+    };
     return read_buffer[0..input_len];
 }
 
@@ -89,12 +91,13 @@ test "input event" {
     }
 
     std_in_reader = tmp_in_file.reader();
-    var std_in_writer = tmp_in_file.writer();
-    defer std_in_reader = std_in.reader();
+
+    var writer_buff: [1024]u8 = undefined;
+    var std_in_writer = tmp_in_file.writer(&writer_buff);
 
     var read_buff: [8]u8 = undefined;
 
-    _ = try std_in_writer.writeByte('a');
+    _ = try std_in_writer.interface.writeByte('a');
     try tmp_in_file.seekTo(0);
 
     const expected = InputEvent{ .input = 'a' };

@@ -81,6 +81,8 @@ pub fn exportFileData(buffer: Buffer, alloc: Allocator) !void {
         return err;
     };
     defer file.close();
-    const file_writer = file.writer();
-    return file_writer.writeAll(buffer.data.items);
+
+    var write_buffer: [1024]u8 = undefined;
+    var file_writer = file.writer(&write_buffer);
+    return file_writer.interface.writeAll(buffer.data.items);
 }
