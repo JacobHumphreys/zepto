@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
 
@@ -7,10 +8,9 @@ const c = @cImport({
 });
 
 pub var log_file: ?fs.File = null;
-var log_file_buff: [1024]u8 = undefined;
-var writer: ?std.Io.Writer = null;
+pub var log_writer: ?Io.Writer = null;
 
-fn init() !void {
+fn init() !fs.File {
     var path_buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&path_buffer);
     const alloc = fba.allocator();
@@ -19,8 +19,7 @@ fn init() !void {
     const time_stamp = try getTimeStamp(alloc);
     const log_name = try std.mem.join(alloc, "", &.{ time_stamp, ".log" });
 
-    log_file = try log_dir.createFile(log_name, .{});
-    writer = log_file.?.writer(&log_file_buff).interface;
+    return log_dir.createFile(log_name, .{});
 }
 
 fn getLogDir(alloc: Allocator) !fs.Dir {
@@ -53,13 +52,16 @@ pub fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    _ = log_file orelse value: {
-        init() catch |err| @panic(@errorName(err));
-        break :value log_file.?;
-    };
-    // Format and write the log message
-    _ = writer.?.print("[{s}] {s}: ", .{ @tagName(level), @tagName(scope) }) catch |err| @panic(@errorName(err));
-    _ = writer.?.print(format, args) catch |err| @panic(@errorName(err));
-    writer.?.flush() catch |err| @panic(@errorName(err));
-    _ = writer.?.writeAll("\n") catch |err| @panic(@errorName(err));
+    log_file = log_file orelse init() catch |err| @panic(@errorName(err));
+
+    var buff: [1024]u8 = undefined;
+    var writer = log_file.?.writer(&buff);
+
+    writer.interface.print("[{s}] {s}: ", .{ @tagName(level), @tagName(scope) }) catch |err|
+        @panic(@errorName(err));
+
+    writer.interface.print(format, args) catch |err| @panic(@errorName(err));
+
+    writer.interface.writeAll("\n") catch |err| @panic(@errorName(err));
+    writer.interface.flush() catch |err| @panic(@errorName(err));
 }
