@@ -139,20 +139,22 @@ pub fn deinit(self: *MainPage) void {
     self.elements.bottom_bar2.deinit();
     self.elements.top_bar.deinit();
     for (0..self.signal_queue.len()) |_| {
-        self.dequeueSignal() catch continue;
+        self.dequeueSignal() catch |signal| {
+            std.log.warn("Unused Signal {t}", .{signal});
+            continue;
+        };
     }
 }
 
 /// Sets page elements to correct state, updates element text, cursor_parent,
 /// visibility, etc.
-fn switchState(self: *MainPage, new_state: PageState) void {
+fn switchState(self: *MainPage, new_state: PageState) Signal!void {
     if (self.state == new_state) return;
     switch (new_state) {
         .edit_text => {
             self.cursor_parent = .text_window;
             self.elements.bottom_prompt.hidden = true;
             self.elements.bottom_prompt.text = "";
-            self.elements.bottom_prompt.clearInput();
             self.elements.bottom_bar1.elements.replaceRangeAssumeCapacity(
                 0,
                 self.elements.bottom_bar1.elements.items.len,
@@ -200,6 +202,7 @@ fn switchState(self: *MainPage, new_state: PageState) void {
         },
     }
     self.state = new_state;
+    return Signal.RedrawBuffer;
 }
 
 var queue_exit = false;
@@ -223,10 +226,8 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
 
         Signal.Exit => {
             switch (self.state) {
-                PageState.edit_text => {
-                    self.switchState(.prompt_save);
-                    return Signal.RedrawBuffer;
-                },
+                PageState.edit_text => try self.switchState(.prompt_save),
+
                 PageState.get_buff_path => {
                     if (self.elements.bottom_prompt.input.items.len == 0) return;
                     self.current_buffer.target_path = self.elements.bottom_prompt.input.items;
@@ -235,11 +236,14 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
                         try self.enqueueSignal(Signal.Exit);
                     } else {
                         try self.enqueueSignal(Signal.RedrawBuffer);
-                        self.switchState(.edit_text);
+
+                        self.switchState(.edit_text) catch |signal|
+                            try self.enqueueSignal(signal);
                     }
 
                     return Signal.SaveBuffer;
                 },
+
                 PageState.prompt_save => try self.updatePage(),
             }
         },
@@ -248,7 +252,7 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
             if (self.current_buffer.target_path) |_| {
                 return Signal.SaveBuffer;
             } else {
-                self.switchState(.get_buff_path);
+                try self.switchState(.get_buff_path);
                 return Signal.RedrawBuffer;
             }
         },
@@ -296,14 +300,16 @@ pub fn updatePage(self: *MainPage) (Allocator.Error || Signal)!void {
             if (answer.len < 1) return;
             if (std.ascii.toLower(answer[0]) == 'y') {
                 queue_exit = true;
-                self.switchState(.get_buff_path);
+
                 if (self.current_buffer.target_path != null) return Signal.SaveBuffer;
+
+                try self.switchState(.get_buff_path);
             } else if (std.ascii.toLower(answer[0]) == 'n') {
                 return Signal.Exit;
             }
             return Signal.RedrawBuffer;
         },
-        else => {},
+        .get_buff_path => {},
     }
 }
 
@@ -314,14 +320,14 @@ pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) Signal!void {
         .get_buff_path => {
             if (event == .input) return;
             if (event.control == .ctrl_c) {
-                self.switchState(.edit_text);
+                try self.switchState(.edit_text);
                 return Signal.RedrawBuffer;
             }
         },
         .prompt_save => {
             if (event == .input) return;
             if (event.control == .ctrl_c) {
-                self.switchState(.edit_text);
+                try self.switchState(.edit_text);
                 return Signal.RedrawBuffer;
             }
         },
