@@ -59,7 +59,7 @@ pub fn localToAbsoultePath(
     return std.mem.concat(alloc, u8, &.{ target_dir_abs_path, "/", target_file_name });
 }
 
-pub fn exportFileData(buffer: Buffer, alloc: Allocator) !void {
+pub fn exportFileData(buffer: *Buffer, alloc: Allocator) !void {
     if (buffer.target_path == null) return Error.InvalidPath;
 
     const absolute_path = if (buffer.target_path.?[0] != '/') value: {
@@ -72,7 +72,8 @@ pub fn exportFileData(buffer: Buffer, alloc: Allocator) !void {
 
     defer {
         if (!mem.eql(u8, buffer.target_path.?, absolute_path)) {
-            alloc.free(absolute_path); //because absolute_path can be either the buffer path or heap allocated
+            //because absolute_path can be either the buffer path or heap allocated, but not both
+            alloc.free(absolute_path);
         }
     }
 
@@ -84,5 +85,7 @@ pub fn exportFileData(buffer: Buffer, alloc: Allocator) !void {
 
     var write_buffer: [1024]u8 = undefined;
     var file_writer = file.writer(&write_buffer);
-    return file_writer.interface.writeAll(buffer.data.items);
+
+    try file_writer.interface.writeAll(buffer.data.items);
+    try file_writer.interface.flush();
 }
