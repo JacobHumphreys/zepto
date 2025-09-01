@@ -45,11 +45,17 @@ state: PageState = .edit_text,
 cursor_parent: element_id = .text_window,
 current_buffer: *Buffer,
 
+signal_queue: std.SinglyLinkedList = .{},
+
+const SignalNode = struct {
+    node: std.SinglyLinkedList.Node = .{},
+    signal: Signal,
+};
+
 const PageState = enum {
     edit_text,
     prompt_save,
     get_buff_path,
-    closed,
 };
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
@@ -132,8 +138,13 @@ pub fn deinit(self: *MainPage) void {
     self.elements.bottom_bar1.deinit();
     self.elements.bottom_bar2.deinit();
     self.elements.top_bar.deinit();
+    for (0..self.signal_queue.len()) |_| {
+        self.dequeueSignal() catch continue;
+    }
 }
 
+/// Sets page elements to correct state, updates element text, cursor_parent,
+/// visibility, etc.
 fn switchState(self: *MainPage, new_state: PageState) void {
     if (self.state == new_state) return;
     switch (new_state) {
@@ -187,7 +198,6 @@ fn switchState(self: *MainPage, new_state: PageState) void {
                 &getBottomBar2Elements(new_state),
             );
         },
-        else => {},
     }
     self.state = new_state;
 }
@@ -195,6 +205,8 @@ fn switchState(self: *MainPage, new_state: PageState) void {
 var queue_exit = false;
 
 pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!void {
+    try self.dequeueSignal();
+
     const cursor_parent = try self.getCursorParent();
     const cursor_container = cursor_parent.cursor_container.?;
 
@@ -218,10 +230,17 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
                 PageState.get_buff_path => {
                     if (self.elements.bottom_prompt.input.items.len == 0) return;
                     self.current_buffer.target_path = self.elements.bottom_prompt.input.items;
+
+                    if (queue_exit) {
+                        try self.enqueueSignal(Signal.Exit);
+                    } else {
+                        try self.enqueueSignal(Signal.RedrawBuffer);
+                        self.switchState(.edit_text);
+                    }
+
                     return Signal.SaveBuffer;
                 },
                 PageState.prompt_save => try self.updatePage(),
-                else => return @errorCast(err),
             }
         },
 
@@ -237,6 +256,23 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
         else => |e| return e,
     };
     try self.processUnhandledEvent(event);
+}
+
+/// Queues a signal to be returned upon the next loop update
+fn enqueueSignal(self: *MainPage, signal: Signal) Allocator.Error!void {
+    const signal_node = try self.alloc.create(SignalNode);
+    signal_node.* = .{ .signal = signal };
+    self.signal_queue.prepend(&signal_node.node);
+}
+
+/// Returns the first Signal contianed in the signal queue. Frees heap memory.
+fn dequeueSignal(self: *MainPage) Signal!void {
+    if (self.signal_queue.popFirst()) |node_field| {
+        const node: *SignalNode = @fieldParentPtr("node", node_field);
+        defer self.alloc.destroy(node);
+        self.signal_queue.first = node_field.next;
+        return node.signal;
+    }
 }
 
 /// Modifies elements based on the page state and their individual states, often returns a Signal.
@@ -266,9 +302,6 @@ pub fn updatePage(self: *MainPage) (Allocator.Error || Signal)!void {
                 return Signal.Exit;
             }
             return Signal.RedrawBuffer;
-        },
-        .closed => {
-            return Signal.Exit;
         },
         else => {},
     }
@@ -304,12 +337,6 @@ pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) Signal!void {
                 .ctrl_j => {
                     @panic("TODO: Justify");
                 },
-                .ctrl_k => {
-                    @panic("TODO: Cut Text");
-                },
-                .ctrl_o => {
-                    @panic("TODO: WriteOut");
-                },
                 .ctrl_r => {
                     @panic("TODO: Read File");
                 },
@@ -327,9 +354,6 @@ pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) Signal!void {
                 },
                 else => return,
             }
-        },
-        .closed => {
-            return Signal.Exit;
         },
     }
 }
@@ -509,14 +533,6 @@ fn getBottomBar1Elements(state: PageState) [6]renderables.Ribbon.Element {
             .{ .text = "" },
             .{ .text = "" },
         },
-        .closed => .{
-            .{ .text = "" },
-            .{ .text = "" },
-            .{ .text = "" },
-            .{ .text = "" },
-            .{ .text = "" },
-            .{ .text = "" },
-        },
     };
 }
 
@@ -591,14 +607,6 @@ fn getBottomBar2Elements(state: PageState) [6]renderables.Ribbon.Element {
                 .color_range = .{ .x = 0, .y = 3 },
                 .text = "TAB Complete",
             },
-            .{ .text = "" },
-            .{ .text = "" },
-            .{ .text = "" },
-            .{ .text = "" },
-        },
-        .closed => .{
-            .{ .text = "" },
-            .{ .text = "" },
             .{ .text = "" },
             .{ .text = "" },
             .{ .text = "" },
