@@ -66,62 +66,74 @@ pub fn processEvent(self: *TextWindow, event: InputEvent) (Signal || CursorConta
             self.addCharToBuffer(char) catch return CursorContainer.Error.FailedToProcessEvent;
             return Signal.RedrawBuffer;
         },
-        .control => |sequence| switch (sequence) {
-            .new_line => {
-                self.addSequenceToBuffer(sequence) catch |err| {
-                    log.err("{any}", .{err});
-                    return CursorContainer.Error.FailedToProcessEvent;
-                };
-                self.moveCursor(.{
-                    .x = -self.cursor_position.x,
-                    .y = 1,
-                });
-                return Signal.RedrawBuffer;
-            },
-            .backspace => {
-                self.deleteAtCursorPosition() catch |err| {
-                    log.err("{any}", .{err});
-                    return CursorContainer.Error.FailedToProcessEvent;
-                };
-                return Signal.RedrawBuffer;
-            },
-            .left => {
-                self.moveCursor(.{ .x = -1 });
-                return Signal.RedrawBuffer;
-            },
-            .right => {
-                self.moveCursor(.{ .x = 1 });
-                return Signal.RedrawBuffer;
-            },
-            .up => {
-                self.moveCursor(.{ .y = -1 });
-                return Signal.RedrawBuffer;
-            },
-            .down => {
-                self.moveCursor(.{ .y = 1 });
-                return Signal.RedrawBuffer;
-            },
-            .ctrl_x => return Signal.Exit,
-            .ctrl_k => {
-                self.cutLine();
-                return Signal.RedrawBuffer;
-            },
-            .ctrl_o => {
-                return Signal.SaveBuffer;
-            },
-            .ctrl_u => {
-                self.buffer.data.insertSlice(
-                    self.buffer.alloc,
-                    self.getCursorPositionIndex(),
-                    copy_buffer.copy_slice,
-                ) catch |err| {
-                    log.err("{any}", .{err});
-                };
-                self.cursor_position.x = intCast(i32, copy_buffer.copy_slice.len);
-                return Signal.RedrawBuffer;
-            },
-            else => return,
+        .control => |sequence| try self.processSequence(sequence),
+    }
+}
+
+fn processSequence(self: *TextWindow, sequence: ControlSequence) (Signal || CursorContainer.Error)!void {
+    switch (sequence) {
+        .new_line => {
+            self.addSequenceToBuffer(sequence) catch |err| {
+                log.err("{any}", .{err});
+                return CursorContainer.Error.FailedToProcessEvent;
+            };
+            self.moveCursor(.{
+                .x = -self.cursor_position.x,
+                .y = 1,
+            });
+            return Signal.RedrawBuffer;
         },
+        .backspace => {
+            self.deleteAtCursorPosition() catch |err| {
+                log.err("{any}", .{err});
+                return CursorContainer.Error.FailedToProcessEvent;
+            };
+            return Signal.RedrawBuffer;
+        },
+        .left => {
+            self.moveCursor(.{ .x = -1 });
+            return Signal.RedrawBuffer;
+        },
+        .right => {
+            self.moveCursor(.{ .x = 1 });
+            return Signal.RedrawBuffer;
+        },
+        .up => {
+            self.moveCursor(.{ .y = -1 });
+            return Signal.RedrawBuffer;
+        },
+        .down => {
+            self.moveCursor(.{ .y = 1 });
+            return Signal.RedrawBuffer;
+        },
+        .ctrl_k => {
+            self.cutLine();
+            return Signal.RedrawBuffer;
+        },
+        .ctrl_o => {
+            return Signal.SaveBuffer;
+        },
+        .ctrl_u => {
+            self.buffer.data.insertSlice(
+                self.buffer.alloc,
+                self.getCursorPositionIndex(),
+                copy_buffer.copy_slice,
+            ) catch |err| {
+                log.err("{any}", .{err});
+            };
+            self.cursor_position.x = intCast(i32, copy_buffer.copy_slice.len);
+            return Signal.RedrawBuffer;
+        },
+        .ctrl_v => {
+            self.moveCursor(.{ .y = self.dimensions.y - self.getCursorPosition().y });
+            return Signal.RedrawBuffer;
+        },
+        .ctrl_y => {
+            self.moveCursor(.{ .y = 0 - @rem(self.getCursorPosition().y, self.dimensions.y) - 1 });
+            return Signal.RedrawBuffer;
+        },
+        .ctrl_x => return Signal.Exit,
+        else => return,
     }
 }
 
