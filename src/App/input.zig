@@ -77,8 +77,6 @@ test "input event" {
         break :value std.fs.openFileAbsolute("/tmp/zepto_tmp_in", .{}) catch {
             break :value try std.fs.createFileAbsolute("/tmp/zepto_tmp_in", .{
                 .read = true,
-                .exclusive = false,
-                .truncate = false,
             });
         };
     };
@@ -90,7 +88,8 @@ test "input event" {
         };
     }
 
-    std_in_reader = tmp_in_file.reader();
+    var reader_buff: [1024]u8 = undefined;
+    std_in_reader = tmp_in_file.reader(&reader_buff);
 
     var writer_buff: [1024]u8 = undefined;
     var std_in_writer = tmp_in_file.writer(&writer_buff);
@@ -98,10 +97,11 @@ test "input event" {
     var read_buff: [8]u8 = undefined;
 
     _ = try std_in_writer.interface.writeByte('a');
-    try tmp_in_file.seekTo(0);
+    try std_in_writer.interface.flush(); //dont forget to flush ;)
 
     const expected = InputEvent{ .input = 'a' };
     const real = try getInputEvent(&read_buff);
+
     try std.testing.expect(real == .input);
     try std.testing.expectEqual(expected.input, real.input);
 }
