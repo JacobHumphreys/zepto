@@ -79,7 +79,7 @@ pub fn run(self: *App, alloc: Allocator) Signal!void {
     };
 }
 
-const max_refresh = @as(i64, @intFromFloat(1.0 / 200.0 * 1000));
+const max_refresh = @as(i64, @intFromFloat(1.0 / (100.0 * 1000)));
 
 var last_update: i64 = 0;
 fn paceFrames() void {
