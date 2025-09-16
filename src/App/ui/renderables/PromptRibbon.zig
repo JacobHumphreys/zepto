@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
+const debug = std.debug;
 
 const lib = @import("lib");
 const intCast = lib.casts.intCast;
@@ -66,7 +67,7 @@ pub fn toStringList(self: *PromptRibbon, alloc: Allocator) Allocator.Error!Array
             num_buf[0..16],
             "{c}[{}m",
             .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
-        ) catch |err| @panic(@errorName(err));
+        ) catch |err| debug.panic("{t}",.{err});
     }
 
     var bg_str: []const u8 = "";
@@ -75,7 +76,7 @@ pub fn toStringList(self: *PromptRibbon, alloc: Allocator) Allocator.Error!Array
             num_buf[16..],
             "{c}[{}m",
             .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
-        ) catch |err| @panic(@errorName(err));
+        ) catch |err| debug.panic("{t}",.{err});
     }
 
     const reset_str: []const u8 = if (bg_str.len > 0 or fg_str.len > 0)

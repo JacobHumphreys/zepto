@@ -1,6 +1,6 @@
 const std = @import("std");
 const log = std.log;
-const assert = std.debug.assert;
+const debug = std.debug;
 const mem = std.mem;
 const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
@@ -196,10 +196,10 @@ fn getCursorPositionIndex(self: TextWindow) usize {
     const row = intCast(usize, self.cursor_position.y);
 
     //vertical position check
-    assert(line_sep_list.items.len >= row);
+    debug.assert(line_sep_list.items.len >= row);
 
     //horizontal position check
-    if (line_sep_list.items.len > 0) assert(line_sep_list.items[row].len >= col);
+    if (line_sep_list.items.len > 0) debug.assert(line_sep_list.items[row].len >= col);
 
     var index: usize = 0;
     for (0..row) |r| {
@@ -214,7 +214,7 @@ fn getCursorPositionIndex(self: TextWindow) usize {
 
 /// From an index within text_buffer returns the cursor position.
 fn getCursorPositionFromIndex(self: TextWindow, index: usize) !Vec2 {
-    assert(self.buffer.data.items.len >= index);
+    debug.assert(self.buffer.data.items.len >= index);
 
     var position = Vec2.ZERO;
 
@@ -300,7 +300,7 @@ fn getLineAtRow(self: *TextWindow, row: i32) []const u8 {
     const row_count = mem.count(u8, self.buffer.data.items, new_line_sequence) + 1;
 
     var line_iter = mem.splitSequence(u8, self.buffer.data.items, new_line_sequence);
-    std.debug.assert(row <= row_count);
+    debug.assert(row <= row_count);
     for (0..row_count) |curr_row| {
         const line = line_iter.next();
         if (intCast(i32, curr_row) == row) {

@@ -1,5 +1,6 @@
 //! A single line ui element without a cursor that has aligned text.
 const std = @import("std");
+const debug = std.debug;
 const mem = std.mem;
 const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
@@ -16,7 +17,6 @@ const Ribbon = @This();
 elements: ArrayList(Element),
 width: usize,
 allocator: Allocator,
-
 
 pub const Element = struct {
     text: []const u8,
@@ -63,7 +63,7 @@ pub fn toStringList(self: *Ribbon, alloc: Allocator) Allocator.Error!ArrayList(A
                 num_buf[0..16],
                 "{c}[{}m",
                 .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
-            ) catch |err| @panic(@errorName(err));
+            ) catch |err| debug.panic("{t}", .{err});
         }
 
         var bg_str: []const u8 = "";
@@ -72,7 +72,7 @@ pub fn toStringList(self: *Ribbon, alloc: Allocator) Allocator.Error!ArrayList(A
                 num_buf[16..],
                 "{c}[{}m",
                 .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
-            ) catch |err| @panic(@errorName(err));
+            ) catch |err| debug.panic("{t}", .{err});
         }
 
         const reset_str: []const u8 = if (bg_str.len > 0 or fg_str.len > 0)

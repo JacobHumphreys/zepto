@@ -1,4 +1,5 @@
 const std = @import("std");
+const debug = std.debug;
 const Io = std.Io;
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
@@ -52,16 +53,16 @@ pub fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    log_file = log_file orelse init() catch |err| @panic(@errorName(err));
+    log_file = log_file orelse init() catch |err| debug.panic("{t}", .{err});
 
     var buff: [1024]u8 = undefined;
     var writer = log_file.?.writer(&buff);
 
-    writer.interface.print("[{s}] {s}: ", .{ @tagName(level), @tagName(scope) }) catch |err|
-        @panic(@errorName(err));
+    writer.interface.print("[{t}] {s}: ", .{ level, @tagName(scope) }) catch |err|
+        debug.panic("{t}", .{err});
 
-    writer.interface.print(format, args) catch |err| @panic(@errorName(err));
+    writer.interface.print(format, args) catch |err| debug.panic("{t}", .{err});
 
-    writer.interface.writeAll("\n") catch |err| @panic(@errorName(err));
-    writer.interface.flush() catch |err| @panic(@errorName(err));
+    writer.interface.writeAll("\n") catch |err| debug.panic("{t}", .{err});
+    writer.interface.flush() catch |err| debug.panic("{t}", .{err});
 }

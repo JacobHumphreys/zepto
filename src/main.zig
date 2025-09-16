@@ -1,5 +1,5 @@
 const std = @import("std");
-const assert = std.debug.assert;
+const debug = std.debug;
 
 const App = @import("App.zig");
 const Signal = @import("lib").types.Signal;
@@ -12,7 +12,7 @@ pub const std_options: std.Options = .{
 
 pub fn main() !void {
     var debug_allocator = std.heap.DebugAllocator(.{}).init;
-    defer std.debug.assert(debug_allocator.deinit() == .ok);
+    defer debug.assert(debug_allocator.deinit() == .ok);
     const alloc = debug_allocator.allocator();
 
     var args = std.process.args();
