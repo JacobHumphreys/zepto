@@ -9,7 +9,7 @@ const Vec2 = @import("Vec2.zig");
 
 const Buffer = @This();
 
-data: ArrayList(u8),
+data: ArrayList(u8) = .empty,
 state: enum { modified, unmodified } = .unmodified,
 target_path: ?[]const u8 = null,
 alloc: Allocator,
