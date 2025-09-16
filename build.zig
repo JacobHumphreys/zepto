@@ -28,6 +28,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
         .imports = &.{
             .{
                 .name = "lib",
@@ -36,14 +37,10 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    root_unit_tests_mod.addImport("lib", lib_mod);
-
     const exe = b.addExecutable(.{
         .name = "zepto",
         .root_module = exe_mod,
     });
-
-    exe.linkLibC();
 
     var build_options = std.Build.Step.Options.create(b);
     build_options.addOption([]const u8, "contents", build_zig_zon);
@@ -61,6 +58,16 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+
+    const exe_comp_check = b.addExecutable(.{
+        .name = "zepto",
+        .root_module = exe_mod,
+    });
+
+    const check_step = b.step("check", "checks for compilation errors");
+
+    check_step.dependOn(&exe_comp_check.step);
 
     const lib_unit_tests = b.addTest(.{
         .root_module = lib_mod,
