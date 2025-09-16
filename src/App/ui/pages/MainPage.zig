@@ -45,11 +45,19 @@ state: PageState = .edit_text,
 cursor_parent: element_id = .text_window,
 current_buffer: *Buffer,
 
-signal_queue: std.SinglyLinkedList = .{},
+//signal_queue: std.SinglyLinkedList = .{},
+//event_queue: std.SinglyLinkedList = .{},
+signal_queue: Queue(Signal) = .{},
+event_queue: Queue(InputEvent) = .{},
 
 const SignalNode = struct {
     node: std.SinglyLinkedList.Node = .{},
     signal: Signal,
+};
+
+const EventNode = struct {
+    node: std.SinglyLinkedList.Node = .{},
+    event: InputEvent,
 };
 
 const PageState = enum {
@@ -138,12 +146,9 @@ pub fn deinit(self: *MainPage) void {
     self.elements.bottom_bar1.deinit();
     self.elements.bottom_bar2.deinit();
     self.elements.top_bar.deinit();
-    for (0..self.signal_queue.len()) |_| {
-        self.dequeueSignal() catch |signal| {
-            std.log.warn("Unused Signal {t}", .{signal});
-            continue;
-        };
-    }
+
+    self.signal_queue.deinit(self.alloc);
+    self.event_queue.deinit(self.alloc);
 }
 
 /// Sets page elements to correct state, updates element text, cursor_parent,
@@ -207,9 +212,24 @@ fn switchState(self: *MainPage, new_state: PageState) Signal!void {
 
 var queue_exit = false;
 
-pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!void {
-    try self.dequeueSignal();
+/// Page interface function. Queues new event and processes old ones
+pub fn processNewEvent(self: *MainPage, current_event: InputEvent) (Allocator.Error || Signal)!void {
 
+    //prevents wasting memory on unknown events
+    if (!std.meta.eql(current_event, InputEvent{ .control = .unknown }))
+        try self.event_queue.enqueue(self.alloc, current_event);
+
+    if (self.signal_queue.dequeue(self.alloc)) |signal| {
+        return signal;
+    }
+
+    while (self.event_queue.dequeue(self.alloc)) |queued_event| {
+        try processEvent(self, queued_event);
+    }
+}
+
+/// Handles passing event to cursor parent and singal routing.
+fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!void {
     const cursor_parent = try self.getCursorParent();
     const cursor_container = cursor_parent.cursor_container.?;
 
@@ -233,12 +253,10 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
                     self.current_buffer.target_path = self.elements.bottom_prompt.input.items;
 
                     if (queue_exit) {
-                        try self.enqueueSignal(Signal.Exit);
+                        try self.signal_queue.enqueue(self.alloc, Signal.Exit);
                     } else {
-                        try self.enqueueSignal(Signal.RedrawBuffer);
-
                         self.switchState(.edit_text) catch |signal|
-                            try self.enqueueSignal(signal);
+                            try self.signal_queue.enqueue(self.alloc, signal);
                     }
 
                     return Signal.SaveBuffer;
@@ -249,34 +267,13 @@ pub fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Sign
         },
 
         Signal.SaveBuffer => {
-            if (self.current_buffer.target_path) |_| {
-                return Signal.SaveBuffer;
-            } else {
-                try self.switchState(.get_buff_path);
-                return Signal.RedrawBuffer;
-            }
+            try self.switchState(.get_buff_path);
+            return Signal.RedrawBuffer;
         },
 
         else => |e| return e,
     };
     try self.processUnhandledEvent(event);
-}
-
-/// Queues a signal to be returned upon the next loop update
-fn enqueueSignal(self: *MainPage, signal: Signal) Allocator.Error!void {
-    const signal_node = try self.alloc.create(SignalNode);
-    signal_node.* = .{ .signal = signal };
-    self.signal_queue.prepend(&signal_node.node);
-}
-
-/// Returns the first Signal contianed in the signal queue. Frees heap memory.
-fn dequeueSignal(self: *MainPage) Signal!void {
-    if (self.signal_queue.popFirst()) |node_field| {
-        const node: *SignalNode = @fieldParentPtr("node", node_field);
-        defer self.alloc.destroy(node);
-        self.signal_queue.first = node_field.next;
-        return node.signal;
-    }
 }
 
 /// Modifies elements based on the page state and their individual states, often returns a Signal.
@@ -299,10 +296,12 @@ pub fn updatePage(self: *MainPage) (Allocator.Error || Signal)!void {
             const answer = self.elements.bottom_prompt.input.items;
             if (answer.len < 1) return;
             if (std.ascii.toLower(answer[0]) == 'y') {
+                if (self.current_buffer.target_path != null) {
+                    try self.signal_queue.enqueue(self.alloc, Signal.Exit);
+                    return Signal.SaveBuffer;
+                }
+
                 queue_exit = true;
-
-                if (self.current_buffer.target_path != null) return Signal.SaveBuffer;
-
                 try self.switchState(.get_buff_path);
             } else if (std.ascii.toLower(answer[0]) == 'n') {
                 return Signal.Exit;
@@ -620,3 +619,70 @@ fn getBottomBar2Elements(state: PageState) [6]renderables.Ribbon.Element {
         },
     };
 }
+
+fn Queue(comptime T: type) type {
+    return struct {
+        const Node = struct {
+            node: std.SinglyLinkedList.Node = .{},
+            value: T,
+        };
+
+        list: std.SinglyLinkedList = .{},
+
+        fn enqueue(self: *@This(), alloc: Allocator, value: T) Allocator.Error!void {
+            const new_node = try alloc.create(@This().Node);
+            new_node.* = .{ .value = value };
+            self.list.prepend(&new_node.node);
+        }
+
+        fn dequeue(self: *@This(), alloc: Allocator) ?T {
+            if (self.list.popFirst()) |node_field| {
+                const node_container: *@This().Node = @fieldParentPtr("node", node_field);
+                defer alloc.destroy(node_container);
+
+                return node_container.value;
+            }
+            return null;
+        }
+
+        fn deinit(self: *@This(), alloc: Allocator) void {
+            while (self.dequeue(alloc)) |_| {}
+        }
+    };
+}
+
+///// Queues a signal to be returned upon the next loop update
+//fn enqueueSignal(self: *MainPage, signal: Signal) Allocator.Error!void {
+//    const signal_node = try self.alloc.create(SignalNode);
+//    signal_node.* = .{ .signal = signal };
+//    self.signal_queue.prepend(&signal_node.node);
+//}
+//
+///// Returns the first Signal contianed in the signal queue. Frees heap memory.
+//fn dequeueSignal(self: *MainPage) ?Signal {
+//    if (self.signal_queue.popFirst()) |node_field| {
+//        const node: *SignalNode = @fieldParentPtr("node", node_field);
+//        defer self.alloc.destroy(node);
+//        self.signal_queue.first = node_field.next;
+//        return node.signal;
+//    }
+//    return null;
+//}
+//
+///// Queues a signal to be returned upon the next loop update
+//fn enqueueEvent(self: *MainPage, event: InputEvent) Allocator.Error!void {
+//    const event_node = try self.alloc.create(EventNode);
+//    event_node.* = .{ .event = event };
+//    self.event_queue.prepend(&event_node.node);
+//}
+//
+///// Returns the first Signal contianed in the signal queue. Frees heap memory.
+//fn dequeueEvent(self: *MainPage) ?InputEvent {
+//    if (self.event_queue.popFirst()) |node_field| {
+//        const node: *EventNode = @fieldParentPtr("node", node_field);
+//        defer self.alloc.destroy(node);
+//        self.event_queue.first = node_field.next;
+//        return node.event;
+//    }
+//    return null;
+//}

@@ -47,9 +47,9 @@ pub const Page = union(enum) {
         }
     }
 
-    pub inline fn processEvent(self: Page, event: InputEvent) (Allocator.Error || Signal)!void {
+    pub inline fn processNewEvent(self: Page, event: InputEvent) (Allocator.Error || Signal)!void {
         switch (self) {
-            inline else => |page| return page.processEvent(event),
+            inline else => |page| return page.processNewEvent(event),
         }
     }
 
