@@ -21,7 +21,10 @@ pub fn main() !void {
 
     const path: ?[]const u8 = args.next();
 
-    var app = try App.init(alloc, .{ .buffer_name = path, .version = getVersion() });
+    var app = App.init(alloc, .{ .buffer_name = path, .version = getVersion() }) catch |err| {
+        std.log.err("App initializiation could not complete -> {t}", .{err});
+        return err;
+    };
     defer app.deinit() catch |err| {
         std.log.err("{any}", .{err});
     };
