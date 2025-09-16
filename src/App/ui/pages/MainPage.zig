@@ -45,10 +45,8 @@ state: PageState = .edit_text,
 cursor_parent: element_id = .text_window,
 current_buffer: *Buffer,
 
-//signal_queue: std.SinglyLinkedList = .{},
-//event_queue: std.SinglyLinkedList = .{},
-signal_queue: Queue(Signal) = .{},
-event_queue: Queue(InputEvent) = .{},
+signal_queue: lib.types.Queue(Signal) = .{},
+event_queue: lib.types.Queue(InputEvent) = .{},
 
 const SignalNode = struct {
     node: std.SinglyLinkedList.Node = .{},
@@ -620,69 +618,3 @@ fn getBottomBar2Elements(state: PageState) [6]renderables.Ribbon.Element {
     };
 }
 
-fn Queue(comptime T: type) type {
-    return struct {
-        const Node = struct {
-            node: std.SinglyLinkedList.Node = .{},
-            value: T,
-        };
-
-        list: std.SinglyLinkedList = .{},
-
-        fn enqueue(self: *@This(), alloc: Allocator, value: T) Allocator.Error!void {
-            const new_node = try alloc.create(@This().Node);
-            new_node.* = .{ .value = value };
-            self.list.prepend(&new_node.node);
-        }
-
-        fn dequeue(self: *@This(), alloc: Allocator) ?T {
-            if (self.list.popFirst()) |node_field| {
-                const node_container: *@This().Node = @fieldParentPtr("node", node_field);
-                defer alloc.destroy(node_container);
-
-                return node_container.value;
-            }
-            return null;
-        }
-
-        fn deinit(self: *@This(), alloc: Allocator) void {
-            while (self.dequeue(alloc)) |_| {}
-        }
-    };
-}
-
-///// Queues a signal to be returned upon the next loop update
-//fn enqueueSignal(self: *MainPage, signal: Signal) Allocator.Error!void {
-//    const signal_node = try self.alloc.create(SignalNode);
-//    signal_node.* = .{ .signal = signal };
-//    self.signal_queue.prepend(&signal_node.node);
-//}
-//
-///// Returns the first Signal contianed in the signal queue. Frees heap memory.
-//fn dequeueSignal(self: *MainPage) ?Signal {
-//    if (self.signal_queue.popFirst()) |node_field| {
-//        const node: *SignalNode = @fieldParentPtr("node", node_field);
-//        defer self.alloc.destroy(node);
-//        self.signal_queue.first = node_field.next;
-//        return node.signal;
-//    }
-//    return null;
-//}
-//
-///// Queues a signal to be returned upon the next loop update
-//fn enqueueEvent(self: *MainPage, event: InputEvent) Allocator.Error!void {
-//    const event_node = try self.alloc.create(EventNode);
-//    event_node.* = .{ .event = event };
-//    self.event_queue.prepend(&event_node.node);
-//}
-//
-///// Returns the first Signal contianed in the signal queue. Frees heap memory.
-//fn dequeueEvent(self: *MainPage) ?InputEvent {
-//    if (self.event_queue.popFirst()) |node_field| {
-//        const node: *EventNode = @fieldParentPtr("node", node_field);
-//        defer self.alloc.destroy(node);
-//        self.event_queue.first = node_field.next;
-//        return node.event;
-//    }
-//    return null;
-//}
