@@ -1,5 +1,8 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const fs = std.fs;
+const File = fs.File;
+const Dir = fs.Dir;
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
@@ -15,60 +18,77 @@ const MEGA = 1_000_000;
 
 /// Returns an owned slice representing user data
 pub fn importFileData(alloc: Allocator, path: []const u8) !Buffer {
-    const absolute_path = if (path[0] != '/') try localToAbsoultePath(alloc, path) else path;
+    var buffer = Buffer{
+        .alloc = alloc,
+        .target_path = path,
+    };
+
+    const absolute_path = if (path[0] != '/')
+        localToAbsoultePath(alloc, path) catch |err| switch (err) {
+            Allocator.Error.OutOfMemory => |e| return e,
+            else => return buffer,
+        }
+    else
+        path;
 
     defer {
         if (!mem.eql(u8, path, absolute_path)) alloc.free(absolute_path);
     }
 
-    const target = try fs.openFileAbsolute(absolute_path, .{ .mode = .read_only });
+    const target_file: ?File = fs.openFileAbsolute(absolute_path, .{ .mode = .read_only }) catch |err| switch (err) {
+        File.OpenError.FileNotFound => null,
+        else => return err,
+    };
 
-    const contents = try target.readToEndAlloc(alloc, MEGA);
+    const contents = if (target_file) |f|
+        try f.readToEndAlloc(alloc, MEGA)
+    else
+        null;
 
-    return Buffer{
-        .alloc = alloc,
-        .target_path = path,
-        .data = .fromOwnedSlice(contents),
+    if (contents) |c| buffer.data = .fromOwnedSlice(c);
+
+    return buffer;
+}
+
+fn localToAbsoultePath(
+    alloc: Allocator,
+    path: []const u8,
+) (Allocator.Error || Dir.RealPathAllocError)![]const u8 {
+    var dir_path: []const u8 = "./";
+    var file_name: []const u8 = path;
+
+    if (std.mem.lastIndexOf(u8, path, "/")) |index| {
+        dir_path = path[0..index];
+        file_name = path[index..];
+    }
+
+    const cwd_path = try fs.cwd().realpathAlloc(alloc, ".");
+    defer alloc.free(cwd_path);
+
+    return mem.concat(alloc, u8, &.{ cwd_path, "/", dir_path, file_name });
+}
+
+fn openOrCreateDir(dir_path: []const u8) (Dir.OpenError || Dir.MakeError)!std.fs.Dir {
+    return fs.cwd().openDir(dir_path, .{}) catch {
+        try fs.cwd().makeDir(dir_path);
+        return try fs.cwd().openDir(dir_path, .{});
     };
 }
 
-pub fn localToAbsoultePath(
-    alloc: Allocator,
-    path: []const u8,
-) (Allocator.Error || Error)![]const u8 {
-    const f = fs.cwd().openFile(
-        path,
-        fs.File.OpenFlags{ .mode = .read_only },
-    ) catch return Error.InvalidPath;
-    f.close();
-
-    var target_dir_path: []const u8 = "./";
-    var target_file_name: []const u8 = path;
-    if (std.mem.lastIndexOf(u8, path, "/")) |index| {
-        target_dir_path = path[0..index];
-        target_file_name = path[index..];
-    }
-
-    var target_dir = fs.cwd().openDir(target_dir_path, .{}) catch return Error.InvalidPath;
-    defer target_dir.close();
-
-    const target_dir_abs_path = target_dir.realpathAlloc(alloc, ".") catch
-        return Error.PathAllocError;
-    defer alloc.free(target_dir_abs_path);
-
-    return std.mem.concat(alloc, u8, &.{ target_dir_abs_path, "/", target_file_name });
-}
-
-pub fn exportFileData(buffer: *Buffer, alloc: Allocator) !void {
+pub fn exportFileData(buffer: *Buffer, alloc: Allocator) (Writer.Error || Allocator.Error || Error)!void {
     if (buffer.target_path == null) return Error.InvalidPath;
 
-    const absolute_path = if (buffer.target_path.?[0] != '/') value: {
-        break :value localToAbsoultePath(alloc, buffer.target_path.?) catch {
-            const cwd_path = try fs.cwd().realpathAlloc(alloc, ".");
-            defer alloc.free(cwd_path);
-            break :value try fs.path.join(alloc, &.{ cwd_path, buffer.target_path.? });
+    var absolute_path: []const u8 = undefined;
+
+    if (buffer.target_path.?[0] != '/') {
+        absolute_path = localToAbsoultePath(alloc, buffer.target_path.?) catch |err| {
+            std.log.err("{t}", .{err});
+            std.log.err("path: {s}", .{absolute_path});
+            return Error.InvalidPath;
         };
-    } else buffer.target_path.?;
+    } else {
+        absolute_path = buffer.target_path.?;
+    }
 
     defer {
         if (!mem.eql(u8, buffer.target_path.?, absolute_path)) {
@@ -77,10 +97,12 @@ pub fn exportFileData(buffer: *Buffer, alloc: Allocator) !void {
         }
     }
 
-    const file = fs.createFileAbsolute(absolute_path, .{}) catch |err| {
-        std.log.err("Invalid Path: {s}", .{absolute_path});
-        return err;
+    const file = fs.createFileAbsolute(absolute_path, .{ .exclusive = false }) catch |err| {
+        std.log.err("{t}", .{err});
+        std.log.err("path: {s}", .{absolute_path});
+        return Error.InvalidPath;
     };
+    //return Error.InvalidPath;
     defer file.close();
 
     var write_buffer: [1024]u8 = undefined;
@@ -88,4 +110,13 @@ pub fn exportFileData(buffer: *Buffer, alloc: Allocator) !void {
 
     try file_writer.interface.writeAll(buffer.data.items);
     try file_writer.interface.flush();
+}
+
+test "import file data" {
+    const alloc = std.testing.allocator;
+    var buffer = try importFileData(alloc, ".gitignore");
+    defer buffer.deinit();
+
+    try std.testing.expect(buffer.data.items.len > 0);
+    try std.testing.expectEqual(0, std.mem.indexOf(u8, buffer.data.items, ".zig-cache"));
 }
