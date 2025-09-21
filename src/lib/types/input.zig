@@ -22,12 +22,16 @@ pub const ControlSequence = enum {
     ctrl_w,
     ctrl_x,
     ctrl_y,
+
     left,
     right,
     up,
     down,
-    new_line,
+
     backspace,
+    tab,
+
+    new_line,
     clear_screen,
     enter_alt_screen,
     exit_alt_screen,
@@ -38,6 +42,7 @@ pub const ControlSequence = enum {
     const esc = [1]u8{control_code.esc};
     const OutputSequenceMap = EnumMap(ControlSequence, []const u8).init(.{
         .new_line = "\n",
+        .tab = "    ",
         .clear_screen = esc ++ "[2J" ++ esc ++ "[H",
         .enter_alt_screen = esc ++ "[?1049h",
         .exit_alt_screen = esc ++ "[?1049l",

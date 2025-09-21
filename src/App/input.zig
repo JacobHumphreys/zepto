@@ -49,6 +49,7 @@ fn inputEventFromChar(char: u8) InputEvent {
         getControlCombination('y') => InputEvent{ .control = .ctrl_y },
         control_code.cr => InputEvent{ .control = ControlSequence.new_line },
         control_code.del => InputEvent{ .control = .backspace },
+        control_code.ht => InputEvent{ .control = .tab },
         else => {
             if (ascii.isPrint(char))
                 return InputEvent{ .input = char }

@@ -83,6 +83,13 @@ fn processSequence(self: *TextWindow, sequence: ControlSequence) (Signal || Curs
             });
             return Signal.RedrawBuffer;
         },
+        .tab => {
+            self.addSequenceToBuffer(sequence) catch |err| {
+                log.err("{t}", .{err});
+                return CursorContainer.Error.FailedToProcessEvent;
+            };
+            return Signal.RedrawBuffer;
+        },
         .backspace => {
             self.deleteAtCursorPosition() catch |err| {
                 log.err("{any}", .{err});
