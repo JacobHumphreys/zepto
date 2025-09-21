@@ -233,7 +233,7 @@ fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!
 
     cursor_container.processEvent(event) catch |err| switch (err) {
         CursorContainer.Error.FailedToProcessEvent => {
-            std.log.err("{any}", .{err});
+            std.log.err("{t}", .{err});
             return Signal.Exit;
         },
 
@@ -345,12 +345,6 @@ pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) Signal!void {
                 },
                 .ctrl_t => {
                     @panic("TODO: To Spell");
-                },
-                .ctrl_u => {
-                    @panic("TODO: UnCut Text");
-                },
-                .ctrl_v => {
-                    @panic("TODO: Next Pg");
                 },
                 .ctrl_w => {
                     @panic("TODO: Where is");
