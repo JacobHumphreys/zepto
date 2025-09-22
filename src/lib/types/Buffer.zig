@@ -65,7 +65,7 @@ pub fn getLineSepperatedList(self: Buffer, alloc: Allocator) Allocator.Error!Arr
     return line_sep_list;
 }
 
-//Returns new cursor position
+///Returns new cursor position
 pub fn deleteAtCursorPosition(self: *Buffer) Error!Vec2 {
     var cursor_index = self.getCursorPositionIndex();
 
