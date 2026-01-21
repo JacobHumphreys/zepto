@@ -54,7 +54,7 @@ pub fn run(self: *App, alloc: Allocator, input_reader: *std.Io.Reader) Signal!vo
     const window_size = Terminal.getWindowSize();
     if (!std.meta.eql(window_size, self.ui_handler.getOutputDimensions())) {
         self.ui_handler.setOutputDimensions(window_size) catch |err| {
-            std.log.err("{any}", .{err});
+            log.err("{any}", .{err});
             return Signal.Exit;
         };
     }

@@ -72,3 +72,8 @@ const KeyCode = struct {
     const up = .{control_code.esc} ++ "[A";
     const down = .{control_code.esc} ++ "[B";
 };
+
+///Returns character equivilent to user input of ctrl+char
+pub fn getControlCombination(char: u8) u8 {
+    return char & control_code.us;
+}
