@@ -48,7 +48,7 @@ pub fn deinit(self: *App) !void {
     try self.terminal.disableRawMode();
 }
 
-pub fn run(self: *App, alloc: Allocator) Signal!void {
+pub fn run(self: *App, alloc: Allocator, input_reader: *std.Io.Reader) Signal!void {
     paceFrames();
 
     const window_size = Terminal.getWindowSize();
@@ -59,8 +59,7 @@ pub fn run(self: *App, alloc: Allocator) Signal!void {
         };
     }
 
-    var input_buffer: [8]u8 = undefined;
-    const event = input.getInputEvent(&input_buffer) catch |err| {
+    const event = input.getInputEvent(input_reader) catch |err| {
         log.err("{any}", .{err});
         return Signal.Exit;
     };

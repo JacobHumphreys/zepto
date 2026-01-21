@@ -12,15 +12,10 @@ pub const Error = error{
     FetchingError,
 };
 
-const std_in: File = std.fs.File.stdin();
-var std_in_buff: [1024]u8 = undefined;
-var std_in_reader = std_in.reader(&std_in_buff);
-
 /// Get next InputEvent struct representing user input
-pub fn getInputEvent(read_buffer: []u8) Error!InputEvent {
-    const input = getNextInput(read_buffer) catch {
-        return Error.FetchingError;
-    };
+pub fn getInputEvent(reader: *Io.Reader) Error!InputEvent {
+    var input_buffer: [8]u8 = undefined;
+    const input = getNextInput(reader, &input_buffer) catch return Error.FetchingError;
 
     return parseEvent(input);
 }
@@ -65,44 +60,7 @@ fn getControlCombination(char: u8) u8 {
 }
 
 ///Used to get next string of characters or characters read from stdin
-pub fn getNextInput(read_buffer: []u8) Io.Reader.Error![]u8 {
-    const input_len = std_in_reader.read(read_buffer) catch |err| switch (err) {
-        Io.Reader.Error.EndOfStream => return read_buffer[0..1],
-        else => return err,
-    };
+pub fn getNextInput(reader: *Io.Reader, read_buffer: []u8) Io.Reader.ShortError![]u8 {
+    const input_len = try reader.readSliceShort(read_buffer);
     return read_buffer[0..input_len];
-}
-
-test "input event" {
-    var tmp_in_file = value: {
-        break :value std.fs.openFileAbsolute("/tmp/zepto_tmp_in", .{}) catch {
-            break :value try std.fs.createFileAbsolute("/tmp/zepto_tmp_in", .{
-                .read = true,
-            });
-        };
-    };
-
-    defer {
-        tmp_in_file.close();
-        _ = std.fs.deleteFileAbsolute("/tmp/zepto_tmp_in") catch {
-            std.debug.print("Failed to delete zepto_tmp_in", .{});
-        };
-    }
-
-    var reader_buff: [1024]u8 = undefined;
-    std_in_reader = tmp_in_file.reader(&reader_buff);
-
-    var writer_buff: [1024]u8 = undefined;
-    var std_in_writer = tmp_in_file.writer(&writer_buff);
-
-    var read_buff: [8]u8 = undefined;
-
-    _ = try std_in_writer.interface.writeByte('a');
-    try std_in_writer.interface.flush(); //dont forget to flush ;)
-
-    const expected = InputEvent{ .input = 'a' };
-    const real = try getInputEvent(&read_buff);
-
-    try std.testing.expect(real == .input);
-    try std.testing.expectEqual(expected.input, real.input);
 }

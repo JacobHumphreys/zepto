@@ -29,8 +29,14 @@ pub fn main() !void {
         std.log.err("{any}", .{err});
     };
 
+    const stdin_file = std.fs.File.stdin();
+    defer stdin_file.close();
+
+    var stdin_buffer: [1024]u8 = undefined;
+    var stdin_reader = stdin_file.reader(&stdin_buffer);
+
     while (true) {
-        app.run(alloc) catch |err| switch (err) {
+        app.run(alloc, &stdin_reader.interface) catch |err| switch (err) {
             Signal.Exit => break,
             else => return err,
         };
