@@ -3,20 +3,23 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const debug = std.debug;
 
-const lib = @import("lib");
-const intCast = lib.casts.intCast;
-const Vec2 = lib.types.Vec2;
-const Stringable = lib.interfaces.Stringable;
-const FgColor = lib.text.FgColor;
-const BgColor = lib.text.BgColor;
-const CursorContainer = lib.interfaces.CursorContainer;
-const Signal = lib.types.Signal;
-const InputEvent = lib.types.input.InputEvent;
+const tui = @import("tui");
+const Stringable = tui.interfaces.Stringable;
+const FgColor = tui.text.FgColor;
+const BgColor = tui.text.BgColor;
+const CursorContainer = tui.interfaces.CursorContainer;
+
+const zepto = @import("zepto");
+const intCast = zepto.intCast;
+const Vec2 = zepto.Vec2;
+const Signal = zepto.Signal;
+const InputEvent = zepto.input.InputEvent;
 
 const AlignedRibbon = @import("AlignedRibbon.zig");
 const Element = AlignedRibbon.Element;
 
 const PromptRibbon = @This();
+
 text: []const u8,
 input: ArrayList(u8),
 width: usize,
@@ -67,7 +70,7 @@ pub fn toStringList(self: *PromptRibbon, alloc: Allocator) Allocator.Error!Array
             num_buf[0..16],
             "{c}[{}m",
             .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
-        ) catch |err| debug.panic("{t}",.{err});
+        ) catch |err| debug.panic("{t}", .{err});
     }
 
     var bg_str: []const u8 = "";
@@ -76,7 +79,7 @@ pub fn toStringList(self: *PromptRibbon, alloc: Allocator) Allocator.Error!Array
             num_buf[16..],
             "{c}[{}m",
             .{ std.ascii.control_code.esc, @intFromEnum(color_id) },
-        ) catch |err| debug.panic("{t}",.{err});
+        ) catch |err| debug.panic("{t}", .{err});
     }
 
     const reset_str: []const u8 = if (bg_str.len > 0 or fg_str.len > 0)

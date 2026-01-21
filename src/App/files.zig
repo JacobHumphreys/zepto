@@ -6,8 +6,8 @@ const Dir = fs.Dir;
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-const lib = @import("lib");
-const Buffer = lib.types.Buffer;
+const zepto = @import("zepto");
+const Buffer = zepto.Buffer;
 
 const Error = error{
     PathAllocError,

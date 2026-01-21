@@ -6,10 +6,22 @@ pub fn build(b: *std.Build) void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib_mod = b.createModule(.{
+    const lib_zepto_mod = b.createModule(.{
         .root_source_file = b.path("lib/zepto/root.zig"),
         .target = target,
         .optimize = optimize,
+    });
+
+    const lib_tui_mod = b.createModule(.{
+        .root_source_file = b.path("lib/tui/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{
+                .name = "zepto",
+                .module = lib_zepto_mod,
+            },
+        },
     });
 
     const root_unit_tests_mod = b.createModule(.{
@@ -18,8 +30,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{
-                .name = "lib",
-                .module = lib_mod,
+                .name = "zepto",
+                .module = lib_zepto_mod,
+            },
+            .{
+                .name = "tui",
+                .module = lib_tui_mod,
             },
         },
     });
@@ -31,8 +47,12 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .imports = &.{
             .{
-                .name = "lib",
-                .module = lib_mod,
+                .name = "zepto",
+                .module = lib_zepto_mod,
+            },
+            .{
+                .name = "tui",
+                .module = lib_tui_mod,
             },
         },
     });
@@ -59,7 +79,6 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-
     const exe_comp_check = b.addExecutable(.{
         .name = "zepto",
         .root_module = exe_mod,
@@ -70,7 +89,7 @@ pub fn build(b: *std.Build) void {
     check_step.dependOn(&exe_comp_check.step);
 
     const lib_unit_tests = b.addTest(.{
-        .root_module = lib_mod,
+        .root_module = lib_zepto_mod,
     });
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);

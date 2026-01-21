@@ -3,9 +3,9 @@ const posix = std.posix;
 const linux = std.os.linux;
 const termios = linux.termios;
 
-const lib = @import("lib");
-const Vec2 = lib.types.Vec2;
-const intCast = lib.casts.intCast;
+const zepto = @import("zepto");
+const Vec2 = zepto.Vec2;
+const intCast = zepto.intCast;
 
 const Terminal = @This();
 

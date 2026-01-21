@@ -1,9 +1,10 @@
-const Vec2 = @import("../types.zig").Vec2;
-const CursorContainer = @This();
-const types = @import("../types.zig");
-const InputEvent = types.input.InputEvent;
-const Signal = types.Signal;
+const std = @import("std");
+const zepto = @import("zepto");
+const Vec2 = zepto.Vec2;
+const InputEvent = zepto.input.InputEvent;
+const Signal = zepto.Signal;
 
+const CursorContainer = @This();
 pub const Error = error{
     FailedToProcessEvent,
 };
@@ -37,6 +38,9 @@ pub inline fn processEvent(self: CursorContainer, event: InputEvent) (Signal || 
 ///     fn processEvent(*Self, event: InputEvent) (Signal || CursorContainer.Error)!void
 pub fn from(selfPtr: anytype) CursorContainer {
     const Tptr = @TypeOf(selfPtr);
+
+    comptime if (@typeInfo(Tptr) != .pointer) @compileError("Invalid Pointer provided to interface");
+
     const generator = struct {
         fn getOpaquePtr(concretePtr: Tptr) *anyopaque {
             const ptr: *anyopaque = @ptrCast(concretePtr);

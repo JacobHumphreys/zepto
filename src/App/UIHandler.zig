@@ -3,13 +3,12 @@ const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 
-const lib = @import("lib");
-const types = lib.types;
-const Vec2 = types.Vec2;
-const InputEvent = types.input.InputEvent;
-const Signal = types.Signal;
-const Buffer = types.Buffer;
-const AppInfo = lib.types.AppInfo;
+const zepto = @import("zepto");
+const Vec2 = zepto.Vec2;
+const InputEvent = zepto.input.InputEvent;
+const Signal = zepto.Signal;
+const Buffer = zepto.Buffer;
+const AppInfo = zepto.AppInfo;
 
 const ui = @import("ui.zig");
 const rendering = ui.rendering;
@@ -22,7 +21,7 @@ const UIHandler = @This();
 current_page: Page,
 alloc: Allocator,
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: lib.types.Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
+pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
     try rendering.enterAltScreen();
     try rendering.clearScreen();
 

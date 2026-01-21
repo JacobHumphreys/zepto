@@ -4,9 +4,8 @@ const mem = std.mem;
 const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 
-const lib = @import("lib");
-const Stringable = lib.interfaces.Stringable;
-const Vec2 = lib.types.Vec2;
+const Stringable = @import("tui").interfaces.Stringable;
+const Vec2 = @import("zepto").Vec2;
 
 const Spacer = @This();
 

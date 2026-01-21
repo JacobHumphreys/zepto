@@ -2,12 +2,12 @@ const std = @import("std");
 const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 
-const lib = @import("lib");
-const Vec2 = lib.types.Vec2;
-const Buffer = lib.types.Buffer;
-const Signal = lib.types.Signal;
-const InputEvent = lib.types.input.InputEvent;
-const RenderElement = lib.types.RenderElement;
+const zepto = @import("zepto");
+const Vec2 = zepto.Vec2;
+const Buffer = zepto.Buffer;
+const Signal = zepto.Signal;
+const InputEvent = zepto.input.InputEvent;
+const RenderElement = @import("tui").RenderElement;
 
 const FileExplorer = @This();
 pub inline fn getElements(self: *FileExplorer, alloc: Allocator) Allocator.Error!ArrayList(RenderElement) {

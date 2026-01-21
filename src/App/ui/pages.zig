@@ -2,14 +2,15 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 
-const lib = @import("lib");
-const types = lib.types;
-const Signal = types.Signal;
-const InputEvent = types.input.InputEvent;
-const RenderElement = types.RenderElement;
-const CursorContainer = lib.interfaces.CursorContainer;
-const Buffer = types.Buffer;
-const Vec2 = types.Vec2;
+const zepto = @import("zepto");
+const Signal = zepto.Signal;
+const InputEvent = zepto.input.InputEvent;
+const Buffer = zepto.Buffer;
+const Vec2 = zepto.Vec2;
+
+const tui = @import("tui");
+const RenderElement = tui.RenderElement;
+const CursorContainer = tui.interfaces.CursorContainer;
 
 pub const MainPage = @import("pages/MainPage.zig");
 

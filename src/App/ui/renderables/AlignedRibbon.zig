@@ -5,12 +5,13 @@ const mem = std.mem;
 const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 
-const lib = @import("lib");
-const intCast = lib.casts.intCast;
-const Stringable = lib.interfaces.Stringable;
-const Vec2 = lib.types.Vec2;
-const FgColor = lib.text.FgColor;
-const BgColor = lib.text.BgColor;
+const zepto = @import("zepto");
+const intCast = zepto.intCast;
+const Vec2 = zepto.Vec2;
+const tui = @import("tui");
+const Stringable = tui.interfaces.Stringable;
+const FgColor = tui.text.FgColor;
+const BgColor = tui.text.BgColor;
 
 const AlignedRibbon = @This();
 

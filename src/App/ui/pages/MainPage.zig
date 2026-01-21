@@ -2,16 +2,17 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 
-const lib = @import("lib");
-const types = lib.types;
-const Signal = types.Signal;
-const InputEvent = types.input.InputEvent;
-const AppInfo = types.AppInfo;
-const Vec2 = types.Vec2;
-const Buffer = types.Buffer;
-const RenderElement = types.RenderElement;
-const intCast = lib.casts.intCast;
-const CursorContainer = lib.interfaces.CursorContainer;
+const zepto = @import("zepto");
+const Signal = zepto.Signal;
+const InputEvent = zepto.input.InputEvent;
+const AppInfo = zepto.AppInfo;
+const Vec2 = zepto.Vec2;
+const Buffer = zepto.Buffer;
+const intCast = zepto.intCast;
+
+const tui = @import("tui");
+const RenderElement = tui.RenderElement;
+const CursorContainer = tui.interfaces.CursorContainer;
 
 const Page = @import("../pages.zig").Page;
 const renderables = @import("../renderables.zig");
@@ -45,8 +46,8 @@ state: PageState = .edit_text,
 cursor_parent: element_id = .text_window,
 current_buffer: *Buffer,
 
-signal_queue: lib.types.Queue(Signal) = .{},
-event_queue: lib.types.Queue(InputEvent) = .{},
+signal_queue: zepto.Queue(Signal) = .{},
+event_queue: zepto.Queue(InputEvent) = .{},
 
 const SignalNode = struct {
     node: std.SinglyLinkedList.Node = .{},

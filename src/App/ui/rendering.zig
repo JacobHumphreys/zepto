@@ -5,12 +5,15 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayListUnmanaged;
 
-const lib = @import("lib");
-const intCast = lib.casts.intCast;
-const Vec2 = lib.types.Vec2;
-const ControlSequence = lib.types.input.ControlSequence;
-const CursorContainer = lib.interfaces.CursorContainer;
-const RenderElement = lib.types.RenderElement;
+const zepto = @import("zepto");
+const intCast = zepto.intCast;
+const Vec2 = zepto.Vec2;
+const ControlSequence = zepto.input.ControlSequence;
+
+const tui = @import("tui");
+const CursorContainer = tui.interfaces.CursorContainer;
+const RenderElement = tui.RenderElement;
+
 const Page = @import("./pages.zig").Page;
 
 pub const Error = error{

@@ -2,7 +2,7 @@ const std = @import("std");
 const debug = std.debug;
 
 const App = @import("App.zig");
-const Signal = @import("lib").types.Signal;
+const Signal = @import("zepto").Signal;
 const build_zig_zon = @import("build_zig_zon");
 
 const logging = @import("logging.zig");

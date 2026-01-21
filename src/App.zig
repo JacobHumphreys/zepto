@@ -4,16 +4,16 @@ const log = std.log;
 const Allocator = std.mem.Allocator;
 
 const Terminal = @import("App/Terminal.zig");
-const Signal = @import("lib").types.Signal;
 const input = @import("App/input.zig");
 const UIHandler = @import("App/UIHandler.zig");
 
-const lib = @import("lib");
-const AppInfo = lib.types.AppInfo;
+const zepto = @import("zepto");
+const Signal = zepto.Signal;
+const AppInfo = zepto.AppInfo;
 
 const files = @import("App/files.zig");
 
-const Buffer = lib.types.Buffer;
+const Buffer = zepto.Buffer;
 
 const App = @This();
 
@@ -49,7 +49,7 @@ pub fn deinit(self: *App) !void {
 }
 
 pub fn run(self: *App, alloc: Allocator, input_reader: *std.Io.Reader) Signal!void {
-    paceFrames();
+    paceRedraw();
 
     const window_size = Terminal.getWindowSize();
     if (!std.meta.eql(window_size, self.ui_handler.getOutputDimensions())) {
@@ -81,7 +81,7 @@ pub fn run(self: *App, alloc: Allocator, input_reader: *std.Io.Reader) Signal!vo
 const max_refresh = @as(i64, @intFromFloat(1.0 / (100.0 * 1000)));
 
 var last_update: i64 = 0;
-fn paceFrames() void {
+fn paceRedraw() void {
     const delta_time = std.time.milliTimestamp() - last_update;
     last_update = std.time.milliTimestamp();
     if (max_refresh > delta_time) {

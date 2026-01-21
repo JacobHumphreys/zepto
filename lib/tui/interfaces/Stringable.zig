@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 const Stringable = @This();
-const Vec2 = @import("../types.zig").Vec2;
+const Vec2 = @import("zepto").Vec2;
 
 ptr: *anyopaque,
 vtable: VTable,
@@ -17,6 +17,9 @@ const VTable = struct {
 ///     fn toStringList(*Self, Allocator) Allocator.Error!ArrayList(ArrayList(u8))
 pub fn from(selfPtr: anytype) Stringable {
     const Tptr = @TypeOf(selfPtr);
+
+    comptime if (@typeInfo(Tptr) != .pointer) @compileError("Invalid parameter provided to interface, must be a pointer");
+
     const generator = struct {
         fn getOpaquePtr(concretePtr: Tptr) *anyopaque {
             const ptr: *anyopaque = @ptrCast(concretePtr);

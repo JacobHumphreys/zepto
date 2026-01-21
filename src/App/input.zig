@@ -4,9 +4,9 @@ const control_code = ascii.control_code;
 const File = std.fs.File;
 const Io = std.Io;
 
-const lib = @import("lib");
-const ControlSequence = lib.types.input.ControlSequence;
-const InputEvent = lib.types.input.InputEvent;
+const zepto = @import("zepto");
+const ControlSequence = zepto.input.ControlSequence;
+const InputEvent = zepto.input.InputEvent;
 
 pub const Error = error{
     FetchingError,

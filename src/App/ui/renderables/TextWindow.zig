@@ -6,15 +6,17 @@ const ArrayList = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
-const lib = @import("lib");
-const Signal = lib.types.Signal;
-const InputEvent = lib.types.input.InputEvent;
-const Stringable = lib.interfaces.Stringable;
-const CursorContainer = lib.interfaces.CursorContainer;
-const Vec2 = lib.types.Vec2;
-const ControlSequence = lib.types.input.ControlSequence;
-const intCast = lib.casts.intCast;
-const Buffer = lib.types.Buffer;
+const lib = @import("zepto");
+const Signal = lib.Signal;
+const InputEvent = lib.input.InputEvent;
+const Vec2 = lib.Vec2;
+const ControlSequence = lib.input.ControlSequence;
+const intCast = lib.intCast;
+const Buffer = lib.Buffer;
+
+const tui = @import("tui");
+const Stringable = tui.interfaces.Stringable;
+const CursorContainer = tui.interfaces.CursorContainer;
 
 const TextWindow = @This();
 
