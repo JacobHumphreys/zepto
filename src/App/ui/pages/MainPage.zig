@@ -75,7 +75,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
             .width = intCast(usize, dimensions.x),
             .elements = &.{
                 .{
-                    .text = app_info.name orelse "zepto",
+                    .text = app_info.name orelse "Zepto",
                     .alignment = .left,
                 },
                 .{
