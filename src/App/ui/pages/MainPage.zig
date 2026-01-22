@@ -46,8 +46,8 @@ state: PageState = .edit_text,
 cursor_parent: element_id = .text_window,
 current_buffer: *Buffer,
 
-signal_queue: zepto.Queue(Signal) = .{},
-event_queue: zepto.Queue(InputEvent) = .{},
+signal_queue: zepto.Queue(Signal) = .empty,
+event_queue: zepto.Queue(InputEvent) = .empty,
 
 const SignalNode = struct {
     node: std.SinglyLinkedList.Node = .{},
@@ -71,27 +71,35 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
 
     const top_bar = try renderables.AlignedRibbon.init(
         alloc,
-        intCast(usize, dimensions.x),
-        &.{
-            .{
-                .text = app_info.name orelse "zepto",
-                .alignment = .left,
+        .{
+            .width = intCast(usize, dimensions.x),
+            .elements = &.{
+                .{
+                    .text = app_info.name orelse "zepto",
+                    .alignment = .left,
+                },
+                .{
+                    .text = app_info.version orelse "0.0.0",
+                    .alignment = .left,
+                },
+                .{
+                    .text = app_info.buffer_name orelse "New Buffer",
+                    .alignment = .center,
+                },
+                .{
+                    .text = app_info.state orelse "",
+                    .alignment = .right,
+                },
             },
-            .{
-                .text = app_info.version orelse "0.0.0",
-                .alignment = .left,
+            .padding = .{
+                .left = 1,
+                .right = 1,
             },
-            .{
-                .text = app_info.buffer_name orelse "New Buffer",
-                .alignment = .center,
-            },
-            .{
-                .text = app_info.state orelse "",
-                .alignment = .right,
+            .color = .{
+                .background = .white,
+                .foreground = .black,
             },
         },
-        .white,
-        .black,
     );
 
     const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
@@ -612,4 +620,3 @@ fn getBottomBar2Elements(state: PageState) [6]renderables.Ribbon.Element {
         },
     };
 }
-

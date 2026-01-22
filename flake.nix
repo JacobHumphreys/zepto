@@ -2,7 +2,7 @@
   description = "Flake Dependencies for Zepto";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/25.11/";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -14,8 +14,9 @@
           name = "clang-zig-shell";
 
           buildInputs = with pkgs; [
-            zig_0_15
+            zig
             zls
+            alpine
             lldb_21
           ];
 

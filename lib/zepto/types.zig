@@ -25,7 +25,11 @@ pub fn Queue(comptime T: type) type {
             value: T,
         };
 
-        list: std.SinglyLinkedList = .{},
+        pub const empty = @This(){
+            .list = .{},
+        };
+
+        list: std.SinglyLinkedList,
 
         pub fn enqueue(self: *@This(), alloc: Allocator, value: T) Allocator.Error!void {
             const item = try alloc.create(Item);

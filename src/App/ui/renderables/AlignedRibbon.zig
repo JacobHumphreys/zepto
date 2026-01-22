@@ -20,6 +20,10 @@ fg_color: ?FgColor,
 bg_color: ?BgColor,
 width: usize,
 allocator: Allocator,
+padding: struct {
+    left: usize = 0,
+    right: usize = 0,
+},
 
 pub const Alignment = enum {
     left,
@@ -28,26 +32,38 @@ pub const Alignment = enum {
 };
 
 pub const Element = struct {
+    alignment: Alignment,
     text: []const u8,
-    alignment: Alignment = .left,
 };
 
 pub fn init(
     alloc: Allocator,
-    width: usize,
-    elements: []const Element,
-    background_color: ?BgColor,
-    foreground_color: ?FgColor,
+    options: struct {
+        width: usize,
+        elements: []const Element,
+        color: struct {
+            background: ?BgColor = null,
+            foreground: ?FgColor = null,
+        } = .{},
+        padding: struct {
+            left: usize = 0,
+            right: usize = 0,
+        } = .{},
+    },
 ) Allocator.Error!AlignedRibbon {
-    var element_list = try ArrayList(Element).initCapacity(alloc, elements.len);
+    var element_list = try ArrayList(Element).initCapacity(alloc, options.elements.len);
 
-    element_list.appendSliceAssumeCapacity(elements);
+    element_list.appendSliceAssumeCapacity(options.elements);
     return AlignedRibbon{
         .allocator = alloc,
-        .fg_color = foreground_color,
-        .bg_color = background_color,
-        .width = width,
+        .fg_color = options.color.foreground,
+        .bg_color = options.color.background,
+        .width = options.width,
         .elements = element_list,
+        .padding = .{
+            .left = options.padding.left,
+            .right = options.padding.right,
+        },
     };
 }
 
@@ -126,7 +142,8 @@ pub fn toStringList(self: *AlignedRibbon, alloc: Allocator) Allocator.Error!Arra
     return output_list;
 }
 
-pub fn applyLeftElements(self: *AlignedRibbon, alloc: Allocator, buff: []u8) !void {
+/// Places elements in buffer with padding and truncation
+pub fn applyLeftElements(self: *AlignedRibbon, alloc: Allocator, buffer: []u8) !void {
     const element_list_buffer = try alloc.alloc(Element, self.elements.items.len);
     defer alloc.free(element_list_buffer);
     const elements = filter(Element, element_list_buffer, self.elements.items, struct {
@@ -137,23 +154,29 @@ pub fn applyLeftElements(self: *AlignedRibbon, alloc: Allocator, buff: []u8) !vo
 
     if (elements.len == 0) return;
 
-    const elements_width = buff.len / elements.len;
+    const elements_width = (buffer.len - self.padding.left) / elements.len;
 
     const elem_output_buff = try alloc.alloc(u8, elements_width);
     defer alloc.free(elem_output_buff);
 
-    var previous_elements_width: usize = 0;
+    var previous_elements_width: usize = self.padding.left;
 
-    for (elements) |e| {
+    for (elements, 0..) |e, i| {
         @memset(elem_output_buff, ' ');
+
+        if (i == 0) {}
+
         const cpy_width = @min(elements_width, e.text.len);
+
         @memcpy(elem_output_buff[0..cpy_width], e.text[0..cpy_width]);
-        const padding: usize = if (cpy_width < elements_width) 1 else 0;
+
+        // Places a space between elements
+        const inner_padding: usize = if (cpy_width < elements_width) 1 else 0;
         @memcpy(
-            buff[previous_elements_width .. previous_elements_width + cpy_width + padding],
-            elem_output_buff[0 .. cpy_width + padding],
+            buffer[previous_elements_width .. previous_elements_width + cpy_width + inner_padding],
+            elem_output_buff[0 .. cpy_width + inner_padding],
         );
-        previous_elements_width += cpy_width + padding;
+        previous_elements_width += cpy_width + inner_padding;
     }
 }
 
@@ -198,7 +221,7 @@ pub fn applyRightElements(self: *AlignedRibbon, alloc: Allocator, buff: []u8) !v
 
     if (elements.len == 0) return;
 
-    const elements_width = buff.len / elements.len;
+    const elements_width = (buff.len - self.padding.right) / elements.len;
 
     const elem_output_buff = try alloc.alloc(u8, elements_width);
     defer alloc.free(elem_output_buff);
