@@ -2,12 +2,13 @@ const renderables = @import("App/ui/renderables.zig");
 const Ribbon = renderables.Ribbon;
 const TextWindow = renderables.TextWindow;
 const input = @import("App/input.zig");
-const files = @import("App/files.zig");
+const zepto = @import("zepto");
 
 //This is here because zig would not test my files the correct way when using normal building
 test "Run All Tests" {
     _ = TextWindow;
     _ = Ribbon;
     _ = input;
-    _ = files;
+    _ = zepto;
+    _ = zepto.files;
 }
