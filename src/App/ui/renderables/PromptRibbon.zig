@@ -140,9 +140,19 @@ inline fn clamp(comptime T: type, opts: struct { value: T, min: T, max: T }) T {
     );
 }
 
-pub inline fn clearInput(self: *PromptRibbon) void {
+pub fn clearInput(self: *PromptRibbon) void {
     self.input.clearAndFree(self.alloc);
     self.cursor_position = 0;
+}
+
+pub fn replaceInput(self: *PromptRibbon, new_input: []const u8) Allocator.Error!void {
+    const cpy_len = @min(self.input.items.len, new_input.len);
+    const remaining = if (cpy_len < new_input.len) new_input[cpy_len..] else "";
+
+    @memcpy(self.input.items[0..cpy_len], new_input[0..cpy_len]);
+
+    self.input.appendSlice(self.alloc, remaining);
+    self.input.items.len = cpy_len + remaining.len;
 }
 
 pub fn processEvent(self: *PromptRibbon, event: InputEvent) (Signal || CursorContainer.Error)!void {

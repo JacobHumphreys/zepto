@@ -14,7 +14,7 @@ const zepto = @import("zepto");
 const intCast = zepto.intCast;
 const Vec2 = zepto.Vec2;
 
-const Ribbon = @This();
+const ColorRibbon = @This();
 
 elements: ArrayList(Element),
 width: usize,
@@ -32,25 +32,27 @@ pub fn init(
     alloc: Allocator,
     width: usize,
     elements: []const Element,
-) Allocator.Error!Ribbon {
+) Allocator.Error!ColorRibbon {
     var element_list = try ArrayList(Element).initCapacity(alloc, elements.len);
 
     element_list.appendSliceAssumeCapacity(elements);
-    return Ribbon{
+    return ColorRibbon{
         .allocator = alloc,
         .width = width,
         .elements = element_list,
     };
 }
 
-pub fn stringable(self: *Ribbon) Stringable {
+pub fn stringable(self: *ColorRibbon) Stringable {
     return Stringable.from(self);
 }
 
 /// Outputs a string representing a single line no longer than the width of the ribbon with every
 /// element taking the same amount of space.
-pub fn toStringList(self: *Ribbon, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
+pub fn toStringList(self: *ColorRibbon, alloc: Allocator) Allocator.Error!ArrayList(ArrayList(u8)) {
     var output_list = ArrayList(ArrayList(u8)).empty;
+
+    if (self.elements.items.len == 0) return output_list;
 
     const element_width: usize = self.width / self.elements.items.len;
 
@@ -128,12 +130,12 @@ pub fn toStringList(self: *Ribbon, alloc: Allocator) Allocator.Error!ArrayList(A
     return output_list;
 }
 
-pub fn deinit(self: *Ribbon) void {
+pub fn deinit(self: *ColorRibbon) void {
     self.elements.deinit(self.allocator);
 }
 
 test "toStringList" {
-    var test_ribbon = try Ribbon.init(
+    var test_ribbon = try ColorRibbon.init(
         std.testing.allocator,
         60,
         &.{

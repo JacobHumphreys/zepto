@@ -142,6 +142,7 @@ fn processSequence(self: *TextWindow, sequence: ControlSequence) (Signal || Curs
             return Signal.RedrawBuffer;
         },
         .ctrl_x => return Signal.Exit,
+        .ctrl_r => return Signal.ReadFileContents,
         else => return,
     }
 }

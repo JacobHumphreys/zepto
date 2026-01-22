@@ -28,6 +28,9 @@ pub fn init(alloc: Allocator) Buffer {
 }
 
 pub fn deinit(self: *Buffer) void {
+    if (self.target_path) |path| {
+        self.alloc.free(path);
+    }
     self.data.deinit(self.alloc);
 }
 
@@ -43,6 +46,18 @@ pub fn appendSliceAtPosition(self: *Buffer, position: usize, slice: []const u8) 
     self.data.insertSlice(self.alloc, position, slice) catch {
         return Error.FailedToAppendToBuffer;
     };
+}
+
+pub fn setTargetPath(self: *Buffer, new_path: ?[]const u8) Allocator.Error!void {
+    if (new_path == null) {
+        self.target_path = null;
+        return;
+    }
+
+    const target_buffer = try self.alloc.alloc(u8, new_path.?.len);
+    @memcpy(target_buffer, new_path.?);
+
+    self.target_path = target_buffer;
 }
 
 const new_line_sequence = ControlSequence.new_line.getValue().?;

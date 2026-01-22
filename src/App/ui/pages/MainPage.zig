@@ -1,4 +1,5 @@
 const std = @import("std");
+const debug = std.debug;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayListUnmanaged;
 
@@ -34,9 +35,9 @@ elements: struct {
     top_bar: renderables.AlignedRibbon,
     top_spacer: renderables.Spacer,
     text_window: renderables.TextWindow,
-    bottom_prompt: renderables.PromptRibbon,
-    bottom_bar1: renderables.Ribbon,
-    bottom_bar2: renderables.Ribbon,
+    bottom_prompt: renderables.Ribbon,
+    bottom_bar1: renderables.ColorRibbon,
+    bottom_bar2: renderables.ColorRibbon,
 },
 
 alloc: Allocator,
@@ -63,6 +64,7 @@ const PageState = enum {
     edit_text,
     prompt_save,
     get_buff_path,
+    get_read_path,
 };
 
 pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
@@ -119,13 +121,13 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
         },
     );
 
-    const bottom_bar1 = try renderables.Ribbon.init(
+    const bottom_bar1 = try renderables.ColorRibbon.init(
         alloc,
         intCast(usize, dimensions.x),
         &getBottomBar1Elements(.edit_text),
     );
 
-    const bottom_bar2 = try renderables.Ribbon.init(
+    const bottom_bar2 = try renderables.ColorRibbon.init(
         alloc,
         intCast(usize, dimensions.x),
         &getBottomBar2Elements(.edit_text),
@@ -137,7 +139,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
             .top_bar = top_bar,
             .top_spacer = spacer,
             .text_window = text_window,
-            .bottom_prompt = bottom_prompt,
+            .bottom_prompt = .{ .prompt = bottom_prompt },
             .bottom_bar1 = bottom_bar1,
             .bottom_bar2 = bottom_bar2,
         },
@@ -160,13 +162,15 @@ pub fn deinit(self: *MainPage) void {
 
 /// Sets page elements to correct state, updates element text, cursor_parent,
 /// visibility, etc.
-fn switchState(self: *MainPage, new_state: PageState) Signal!void {
+fn switchState(self: *MainPage, new_state: PageState) (Allocator.Error || Signal)!void {
     if (self.state == new_state) return;
     switch (new_state) {
         .edit_text => {
             self.cursor_parent = .text_window;
-            self.elements.bottom_prompt.hidden = true;
-            self.elements.bottom_prompt.text = "";
+
+            self.elements.bottom_prompt.deinit();
+            self.elements.bottom_prompt = .{ .color = try .init(self.alloc, intCast(usize, self.dimensions.x), &.{}) };
+
             self.elements.bottom_bar1.elements.replaceRangeAssumeCapacity(
                 0,
                 self.elements.bottom_bar1.elements.items.len,
@@ -180,10 +184,21 @@ fn switchState(self: *MainPage, new_state: PageState) Signal!void {
         },
 
         .prompt_save => {
-            self.elements.bottom_prompt.hidden = false;
+            self.elements.bottom_prompt.deinit();
+            self.elements.bottom_prompt = .{
+                .prompt = .init(
+                    self.alloc,
+                    .{
+                        .text = "Save Current Buffer Y/N:",
+                        .width = intCast(usize, self.dimensions.x),
+                        .foreground_color = .black,
+                        .background_color = .white,
+                        .hidden = false,
+                    },
+                ),
+            };
+
             self.cursor_parent = .bottom_prompt;
-            self.elements.bottom_prompt.text = "Save Current Buffer Y/N:";
-            self.elements.bottom_prompt.clearInput();
             self.elements.bottom_bar1.elements.replaceRangeAssumeCapacity(
                 0,
                 self.elements.bottom_bar1.elements.items.len,
@@ -196,11 +211,22 @@ fn switchState(self: *MainPage, new_state: PageState) Signal!void {
             );
         },
 
-        .get_buff_path => {
-            self.elements.bottom_prompt.hidden = false;
+        .get_buff_path, .get_read_path => {
+            self.elements.bottom_prompt.deinit();
+            self.elements.bottom_prompt = .{
+                .prompt = .init(
+                    self.alloc,
+                    .{
+                        .text = "Enter Path:",
+                        .width = intCast(usize, self.dimensions.x),
+                        .foreground_color = .black,
+                        .background_color = .white,
+                        .hidden = false,
+                    },
+                ),
+            };
+
             self.cursor_parent = .bottom_prompt;
-            self.elements.bottom_prompt.text = "Enter Path:";
-            self.elements.bottom_prompt.clearInput();
             self.elements.bottom_bar1.elements.replaceRangeAssumeCapacity(
                 0,
                 self.elements.bottom_bar1.elements.items.len,
@@ -255,18 +281,47 @@ fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!
             switch (self.state) {
                 PageState.edit_text => try self.switchState(.prompt_save),
 
-                PageState.get_buff_path => {
-                    if (self.elements.bottom_prompt.input.items.len == 0) return;
-                    self.current_buffer.target_path = self.elements.bottom_prompt.input.items;
+                PageState.get_buff_path => { // Enter is pressed on a prompt ribbon
+                    switch (self.elements.bottom_prompt) {
+                        .prompt => |*prompt| {
+                            if (prompt.input.items.len == 0) return;
+
+                            try self.current_buffer.setTargetPath(prompt.input.items);
+                        },
+                        else => unreachable,
+                    }
 
                     if (queue_exit) {
                         try self.signal_queue.enqueue(self.alloc, Signal.Exit);
                     } else {
-                        self.switchState(.edit_text) catch |signal|
-                            try self.signal_queue.enqueue(self.alloc, signal);
+                        self.switchState(.edit_text) catch |e| switch (e) {
+                            Allocator.Error.OutOfMemory => |oom| return oom,
+                            else => |signal| try self.signal_queue.enqueue(self.alloc, signal),
+                        };
                     }
 
                     return Signal.SaveBuffer;
+                },
+
+                PageState.get_read_path => { // Enter is pressed on a prompt ribbon
+
+                    debug.assert(self.elements.bottom_prompt == .prompt);
+
+                    const prompt: *renderables.PromptRibbon = &self.elements.bottom_prompt.prompt;
+
+                    if (prompt.input.items.len == 0) return;
+
+                    const file_path = prompt.input.items;
+
+                    var file_data: ?Buffer = zepto.files.importFileData(self.alloc, file_path) catch |e| switch (e) {
+                        Allocator.Error.OutOfMemory => |alloc_err| return alloc_err,
+                        else => null,
+                    };
+
+                    if (file_data == null) {
+                        prompt.clearInput();
+                    }
+                    defer file_data.?.deinit();
                 },
 
                 PageState.prompt_save => try self.updatePage(),
@@ -275,6 +330,11 @@ fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!
 
         Signal.SaveBuffer => {
             try self.switchState(.get_buff_path);
+            return Signal.RedrawBuffer;
+        },
+
+        Signal.ReadFileContents => {
+            try self.switchState(.get_read_path);
             return Signal.RedrawBuffer;
         },
 
@@ -300,7 +360,11 @@ pub fn updatePage(self: *MainPage) (Allocator.Error || Signal)!void {
         },
 
         .prompt_save => {
-            const answer = self.elements.bottom_prompt.input.items;
+            debug.assert(self.elements.bottom_prompt == .prompt);
+            const prompt: *renderables.PromptRibbon = &self.elements.bottom_prompt.prompt;
+
+            const answer = prompt.input.items;
+
             if (answer.len < 1) return;
             if (std.ascii.toLower(answer[0]) == 'y') {
                 if (self.current_buffer.target_path != null) {
@@ -315,15 +379,15 @@ pub fn updatePage(self: *MainPage) (Allocator.Error || Signal)!void {
             }
             return Signal.RedrawBuffer;
         },
-        .get_buff_path => {},
+        .get_buff_path, .get_read_path => {},
     }
 }
 
 /// For inputs that are expected at specific page states, but not handled by the element type.
 /// Eg: InputEvent.control.ctrl_c for PageState.prompt_save
-pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) Signal!void {
+pub fn processUnhandledEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!void {
     switch (self.state) {
-        .get_buff_path => {
+        .get_buff_path, .get_read_path => {
             if (event == .input) return;
             if (event.control == .ctrl_c) {
                 try self.switchState(.edit_text);
@@ -387,7 +451,7 @@ pub fn getElements(self: *MainPage, alloc: Allocator) Allocator.Error!ArrayList(
             RenderElement{
                 .stringable = self.elements.bottom_prompt.stringable(),
                 .cursor_container = self.elements.bottom_prompt.cursorContainer(),
-                .is_visible = !self.elements.bottom_prompt.hidden,
+                .is_visible = !self.elements.bottom_prompt.isHidden(),
                 .position = .{ .x = 0, .y = self.dimensions.y - 3 },
             },
             RenderElement{
@@ -433,7 +497,7 @@ pub fn setOutputDimensions(self: *MainPage, dimensions: Vec2) void {
     self.dimensions = dimensions;
     self.elements.top_bar.width = intCast(usize, dimensions.x);
     self.elements.top_spacer.width = intCast(usize, dimensions.x);
-    self.elements.bottom_prompt.width = intCast(usize, dimensions.x);
+    self.elements.bottom_prompt.setWidth(intCast(usize, dimensions.x));
     self.elements.bottom_bar1.width = intCast(usize, dimensions.x);
     self.elements.bottom_bar2.width = intCast(usize, dimensions.x);
     const window_dimensions = dimensions.sub(.{ .x = 0, .y = 5 });
@@ -468,7 +532,7 @@ pub fn updateAppInfo(self: *MainPage, alloc: Allocator, appInfo: AppInfo) Alloca
     });
 }
 
-fn getBottomBar1Elements(state: PageState) [6]renderables.Ribbon.Element {
+fn getBottomBar1Elements(state: PageState) [6]renderables.ColorRibbon.Element {
     return switch (state) {
         .edit_text => .{
             .{
@@ -521,7 +585,7 @@ fn getBottomBar1Elements(state: PageState) [6]renderables.Ribbon.Element {
             .{ .text = "" },
             .{ .text = "" },
         },
-        .get_buff_path => .{
+        .get_buff_path, .get_read_path => .{
             .{
                 .background_color = .white,
                 .foreground_color = .black,
@@ -542,7 +606,7 @@ fn getBottomBar1Elements(state: PageState) [6]renderables.Ribbon.Element {
     };
 }
 
-fn getBottomBar2Elements(state: PageState) [6]renderables.Ribbon.Element {
+fn getBottomBar2Elements(state: PageState) [6]renderables.ColorRibbon.Element {
     return switch (state) {
         .edit_text => .{
             .{
@@ -600,7 +664,7 @@ fn getBottomBar2Elements(state: PageState) [6]renderables.Ribbon.Element {
             .{ .text = "" },
             .{ .text = "" },
         },
-        .get_buff_path => .{
+        .get_buff_path, .get_read_path => .{
             .{
                 .background_color = .white,
                 .foreground_color = .black,

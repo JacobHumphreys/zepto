@@ -9,6 +9,7 @@ pub const Signal = error{
     Exit,
     SaveBuffer,
     RedrawBuffer,
+    ReadFileContents
 };
 
 pub const AppInfo = struct {

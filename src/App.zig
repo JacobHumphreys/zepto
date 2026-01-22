@@ -11,7 +11,7 @@ const zepto = @import("zepto");
 const Signal = zepto.Signal;
 const AppInfo = zepto.AppInfo;
 
-const files = @import("App/files.zig");
+const files = zepto.files;
 
 const Buffer = zepto.Buffer;
 

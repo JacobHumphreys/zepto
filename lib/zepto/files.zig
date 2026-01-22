@@ -1,13 +1,13 @@
 const std = @import("std");
 const Writer = std.Io.Writer;
+const Reader = std.Io.Reader;
 const fs = std.fs;
 const File = fs.File;
 const Dir = fs.Dir;
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
-const zepto = @import("zepto");
-const Buffer = zepto.Buffer;
+const Buffer = @import("types.zig").Buffer;
 
 const Error = error{
     PathAllocError,
@@ -16,11 +16,17 @@ const Error = error{
 
 const MEGA = 1_000_000;
 
+pub const ImportError = (Allocator.Error || Reader.ReadAllocError || File.OpenError);
+
 /// Returns an owned slice representing user data
-pub fn importFileData(alloc: Allocator, path: []const u8) !Buffer {
+pub fn importFileData(alloc: Allocator, path: []const u8) ImportError!Buffer {
+    const path_cpy = try alloc.alloc(u8, path.len);
+    @memcpy(path_cpy, path);
+    errdefer alloc.free(path_cpy);
+
     var buffer = Buffer{
         .alloc = alloc,
-        .target_path = path,
+        .target_path = path_cpy,
     };
 
     const absolute_path = if (path[0] != '/')
@@ -40,12 +46,20 @@ pub fn importFileData(alloc: Allocator, path: []const u8) !Buffer {
         else => return err,
     };
 
-    const contents = if (target_file) |f|
-        try f.readToEndAlloc(alloc, MEGA)
-    else
-        null;
+    if (target_file) |f| {
+        var reader_buff: [4096]u8 = undefined;
+        var file_reader = f.reader(&reader_buff);
+        var reader = &file_reader.interface;
 
-    if (contents) |c| buffer.data = .fromOwnedSlice(c);
+        while (true) {
+            var chunk: [1024]u8 = undefined;
+            const n = try reader.readSliceShort(&chunk);
+
+            if (n == 0) break;
+
+            try buffer.data.appendSlice(alloc, chunk[0..n]);
+        }
+    }
 
     return buffer;
 }
