@@ -4,9 +4,7 @@ const Io = std.Io;
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
 
-const c = @cImport({
-    @cInclude("time.h");
-});
+const c = @import("c");
 
 pub var log_file: ?fs.File = null;
 pub var log_writer: ?Io.Writer = null;

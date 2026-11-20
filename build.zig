@@ -40,6 +40,13 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const translateC = b.addTranslateC(.{
+        .link_libc = true,
+        .optimize = optimize,
+        .target = target,
+        .root_source_file = b.path("./lib/c.h"),
+    });
+
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -53,6 +60,10 @@ pub fn build(b: *std.Build) void {
             .{
                 .name = "tui",
                 .module = lib_tui_mod,
+            },
+            .{
+                .name = "c",
+                .module = translateC.createModule(),
             },
         },
     });
@@ -72,9 +83,7 @@ pub fn build(b: *std.Build) void {
 
     run_cmd.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);

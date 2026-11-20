@@ -34,9 +34,9 @@ fn setStateFlags(initial_state: termios, value: bool) termios {
     var oflag = initial_state.oflag;
     var iflag = initial_state.iflag;
 
-    lflag.ISIG, lflag.ECHO, lflag.ICANON, lflag.IEXTEN = .{value} ** 4;
+    lflag.ISIG, lflag.ECHO, lflag.ICANON, lflag.IEXTEN = @as(@Tuple(bool), @splat(.{value}));
     oflag.OPOST = value;
-    iflag.IXON, iflag.ICRNL, iflag.BRKINT, iflag.INPCK, iflag.ISTRIP = .{value} ** 5;
+    iflag.IXON, iflag.ICRNL, iflag.BRKINT, iflag.INPCK, iflag.ISTRIP = @as(@Tuple(bool), @splat(.{value}));
 
     new_state.iflag = iflag;
     new_state.lflag = lflag;
@@ -44,8 +44,8 @@ fn setStateFlags(initial_state: termios, value: bool) termios {
 }
 
 pub fn setByteRead(self: *Terminal, timeout: u8, minimumBtyes: u8) void {
-    self.state.cc[@intFromEnum(std.os.linux.V.TIME)] = timeout;
-    self.state.cc[@intFromEnum(std.os.linux.V.MIN)] = minimumBtyes;
+    self.state.cc[@backingInt(std.os.linux.V.TIME)] = timeout;
+    self.state.cc[@backingInt(std.os.linux.V.MIN)] = minimumBtyes;
 }
 
 pub fn enableRawMode(self: *Terminal) Error!void {
