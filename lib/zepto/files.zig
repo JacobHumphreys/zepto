@@ -1,9 +1,9 @@
 const std = @import("std");
 const Writer = std.Io.Writer;
 const Reader = std.Io.Reader;
-const fs = std.fs;
-const File = fs.File;
-const Dir = fs.Dir;
+const Io = std.Io;
+const File = Io.File;
+const Dir = Io.Dir;
 const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
@@ -19,7 +19,7 @@ const MEGA = 1_000_000;
 pub const ImportError = (Allocator.Error || Reader.ReadAllocError || File.OpenError);
 
 /// Returns an owned slice representing user data
-pub fn importFileData(alloc: Allocator, path: []const u8) ImportError!Buffer {
+pub fn importFileData(alloc: Allocator, io: Io, path: []const u8) ImportError!Buffer {
     const path_cpy = try alloc.alloc(u8, path.len);
     @memcpy(path_cpy, path);
     errdefer alloc.free(path_cpy);
@@ -30,7 +30,7 @@ pub fn importFileData(alloc: Allocator, path: []const u8) ImportError!Buffer {
     };
 
     const absolute_path = if (path[0] != '/')
-        localToAbsoultePath(alloc, path) catch |err| switch (err) {
+        localToAbsoultePath(alloc, io, path) catch |err| switch (err) {
             Allocator.Error.OutOfMemory => |e| return e,
             else => return buffer,
         }
@@ -41,14 +41,14 @@ pub fn importFileData(alloc: Allocator, path: []const u8) ImportError!Buffer {
         if (!mem.eql(u8, path, absolute_path)) alloc.free(absolute_path);
     }
 
-    const target_file: ?File = fs.openFileAbsolute(absolute_path, .{ .mode = .read_only }) catch |err| switch (err) {
+    const target_file: ?File = Dir.openFileAbsolute(io, absolute_path, .{ .mode = .read_only }) catch |err| switch (err) {
         File.OpenError.FileNotFound => null,
         else => return err,
     };
 
     if (target_file) |f| {
         var reader_buff: [4096]u8 = undefined;
-        var file_reader = f.reader(&reader_buff);
+        var file_reader = f.reader(io, &reader_buff);
         var reader = &file_reader.interface;
 
         while (true) {
@@ -66,8 +66,9 @@ pub fn importFileData(alloc: Allocator, path: []const u8) ImportError!Buffer {
 
 fn localToAbsoultePath(
     alloc: Allocator,
+    io: Io,
     path: []const u8,
-) (Allocator.Error || Dir.RealPathAllocError)![]const u8 {
+) (Allocator.Error || Dir.RealPathFileAllocError)![]const u8 {
     var dir_path: []const u8 = "./";
     var file_name: []const u8 = path;
 
@@ -76,26 +77,26 @@ fn localToAbsoultePath(
         file_name = path[index..];
     }
 
-    const cwd_path = try fs.cwd().realpathAlloc(alloc, ".");
+    const cwd_path = try Dir.cwd().realPathFileAlloc(io, ".", alloc);
     defer alloc.free(cwd_path);
 
     return mem.concat(alloc, u8, &.{ cwd_path, "/", dir_path, file_name });
 }
 
-fn openOrCreateDir(dir_path: []const u8) (Dir.OpenError || Dir.MakeError)!std.fs.Dir {
-    return fs.cwd().openDir(dir_path, .{}) catch {
-        try fs.cwd().makeDir(dir_path);
-        return try fs.cwd().openDir(dir_path, .{});
+fn openOrCreateDir(io: Io, dir_path: []const u8) (Dir.OpenError || Dir.MakeError)!std.fs.Dir {
+    return Dir.cwd().openDir(dir_path, .{}) catch {
+        try Dir.cwd().createDir(io, dir_path, .default_dir);
+        return try Dir.cwd().openDir(dir_path, .{});
     };
 }
 
-pub fn exportFileData(buffer: *Buffer, alloc: Allocator) (Writer.Error || Allocator.Error || Error)!void {
+pub fn exportFileData(buffer: *Buffer, alloc: Allocator, io: Io) (Writer.Error || Allocator.Error || Error)!void {
     if (buffer.target_path == null) return Error.InvalidPath;
 
     var absolute_path: []const u8 = undefined;
 
     if (buffer.target_path.?[0] != '/') {
-        absolute_path = localToAbsoultePath(alloc, buffer.target_path.?) catch |err| {
+        absolute_path = localToAbsoultePath(alloc, io, buffer.target_path.?) catch |err| {
             std.log.err("{t}", .{err});
             std.log.err("path: {s}", .{absolute_path});
             return Error.InvalidPath;
@@ -111,16 +112,16 @@ pub fn exportFileData(buffer: *Buffer, alloc: Allocator) (Writer.Error || Alloca
         }
     }
 
-    const file = fs.createFileAbsolute(absolute_path, .{ .exclusive = false }) catch |err| {
+    const file = Dir.createFileAbsolute(io, absolute_path, .{ .exclusive = false }) catch |err| {
         std.log.err("{t}", .{err});
         std.log.err("path: {s}", .{absolute_path});
         return Error.InvalidPath;
     };
     //return Error.InvalidPath;
-    defer file.close();
+    defer file.close(io);
 
     var write_buffer: [1024]u8 = undefined;
-    var file_writer = file.writer(&write_buffer);
+    var file_writer = file.writer(io, &write_buffer);
 
     try file_writer.interface.writeAll(buffer.data.items);
     try file_writer.interface.flush();
@@ -128,7 +129,7 @@ pub fn exportFileData(buffer: *Buffer, alloc: Allocator) (Writer.Error || Alloca
 
 test "import file data" {
     const alloc = std.testing.allocator;
-    var buffer = try importFileData(alloc, ".gitignore");
+    var buffer = try importFileData(alloc, std.testing.io, ".gitignore");
     defer buffer.deinit();
 
     try std.testing.expect(buffer.data.items.len > 0);

@@ -1,5 +1,6 @@
 //! Handles ui rendering and processing of input events at a high level.
 const std = @import("std");
+const Io = std.Io;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 
@@ -20,24 +21,26 @@ const UIHandler = @This();
 
 current_page: Page,
 alloc: Allocator,
+io: Io,
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
-    try rendering.enterAltScreen();
-    try rendering.clearScreen();
+pub fn init(alloc: Allocator, io: Io, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) (Allocator.Error || ui.Error)!UIHandler {
+    try rendering.enterAltScreen(io);
+    try rendering.clearScreen(io);
 
     var page = try alloc.create(MainPage);
-    page.* = try MainPage.init(alloc, dimensions, buffer, app_info);
+    page.* = try MainPage.init(alloc, io, dimensions, buffer, app_info);
 
-    try rendering.reRenderOutput(alloc, page.page());
+    try rendering.reRenderOutput(alloc, io, page.page());
 
     return UIHandler{
         .alloc = alloc,
+        .io = io,
         .current_page = page.page(),
     };
 }
 
 pub fn deinit(self: *UIHandler) void {
-    rendering.exitAltScreen() catch |err| {
+    rendering.exitAltScreen(self.io) catch |err| {
         std.log.err("{any}", .{err});
     };
     self.current_page.deinit();
@@ -47,7 +50,7 @@ pub fn deinit(self: *UIHandler) void {
 pub fn processEvent(self: *UIHandler, event: InputEvent) (Allocator.Error || Signal)!void {
     self.current_page.processNewEvent(event) catch |err| switch (err) {
         Signal.RedrawBuffer => {
-            rendering.reRenderOutput(self.alloc, self.current_page) catch |e| switch (e) {
+            rendering.reRenderOutput(self.alloc, self.io, self.current_page) catch |e| switch (e) {
                 Allocator.Error.OutOfMemory => |alloc_err| return alloc_err,
                 else => {
                     std.log.err("{any}", .{e});
@@ -65,7 +68,7 @@ pub inline fn getOutputDimensions(self: *UIHandler) Vec2 {
 
 pub fn setOutputDimensions(self: *UIHandler, dimensions: Vec2) (Allocator.Error || ui.Error)!void {
     self.current_page.setOutputDimensions(dimensions);
-    try rendering.reRenderOutput(self.alloc, self.current_page);
+    try rendering.reRenderOutput(self.alloc, self.io, self.current_page);
 }
 
 pub inline fn getCurrentBuffer(self: *UIHandler) *Buffer {

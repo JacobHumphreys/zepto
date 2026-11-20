@@ -1,7 +1,6 @@
 const std = @import("std");
 const ascii = std.ascii;
 const control_code = ascii.control_code;
-const File = std.fs.File;
 const Io = std.Io;
 
 const zepto = @import("zepto");
@@ -9,7 +8,7 @@ const input = zepto.input;
 const ControlSequence = zepto.input.ControlSequence;
 const InputEvent = zepto.input.InputEvent;
 
-pub const Error = error {
+pub const Error = error{
     FetchingError,
 };
 

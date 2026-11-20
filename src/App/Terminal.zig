@@ -34,9 +34,9 @@ fn setStateFlags(initial_state: termios, value: bool) termios {
     var oflag = initial_state.oflag;
     var iflag = initial_state.iflag;
 
-    lflag.ISIG, lflag.ECHO, lflag.ICANON, lflag.IEXTEN = @as(@Tuple(bool), @splat(.{value}));
+    lflag.ISIG, lflag.ECHO, lflag.ICANON, lflag.IEXTEN = @as([4]bool, @splat(value));
     oflag.OPOST = value;
-    iflag.IXON, iflag.ICRNL, iflag.BRKINT, iflag.INPCK, iflag.ISTRIP = @as(@Tuple(bool), @splat(.{value}));
+    iflag.IXON, iflag.ICRNL, iflag.BRKINT, iflag.INPCK, iflag.ISTRIP = @as([5]bool, @splat(value));
 
     new_state.iflag = iflag;
     new_state.lflag = lflag;

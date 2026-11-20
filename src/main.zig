@@ -10,18 +10,14 @@ pub const std_options: std.Options = .{
     .logFn = logging.log,
 };
 
-pub fn main() !void {
-    var debug_allocator = std.heap.DebugAllocator(.{}).init;
-    defer debug.assert(debug_allocator.deinit() == .ok);
-    const alloc = debug_allocator.allocator();
-
-    var args = std.process.args();
+pub fn main(init: std.process.Init) !void {
+    var args = init.minimal.args.iterate();
 
     _ = args.skip();
 
     const path: ?[]const u8 = args.next();
 
-    var app = App.init(alloc, .{ .buffer_name = path, .version = getVersion() }) catch |err| {
+    var app = App.init(init.gpa, init.io, .{ .buffer_name = path, .version = getVersion() }) catch |err| {
         std.log.err("App initializiation could not complete -> {t}", .{err});
         return err;
     };
@@ -29,14 +25,14 @@ pub fn main() !void {
         std.log.err("{any}", .{err});
     };
 
-    const stdin_file = std.fs.File.stdin();
-    defer stdin_file.close();
+    const stdin_file = std.Io.File.stdin();
+    defer stdin_file.close(init.io);
 
     var stdin_buffer: [1024]u8 = undefined;
-    var stdin_reader = stdin_file.reader(&stdin_buffer);
+    var stdin_reader = stdin_file.reader(init.io, &stdin_buffer);
 
     while (true) {
-        app.run(alloc, &stdin_reader.interface) catch |err| switch (err) {
+        app.run(init.gpa, init.io, &stdin_reader.interface) catch |err| switch (err) {
             Signal.Exit => break,
             else => return err,
         };

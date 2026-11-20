@@ -24,6 +24,14 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const known_folders = b.dependency(
+        "known_folders",
+        .{
+            .target = target,
+            .optimize = optimize,
+        },
+    );
+
     const root_unit_tests_mod = b.createModule(.{
         .root_source_file = b.path("src/root_unit_tests.zig"),
         .target = target,
@@ -64,6 +72,10 @@ pub fn build(b: *std.Build) void {
             .{
                 .name = "c",
                 .module = translateC.createModule(),
+            },
+            .{
+                .name = "known-folders",
+                .module = known_folders.module("known-folders"),
             },
         },
     });

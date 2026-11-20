@@ -41,6 +41,7 @@ elements: struct {
 },
 
 alloc: Allocator,
+io: std.Io,
 
 state: PageState = .edit_text,
 
@@ -67,7 +68,7 @@ const PageState = enum {
     get_read_path,
 };
 
-pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
+pub fn init(alloc: Allocator, io: std.Io, dimensions: Vec2, buffer: Buffer, app_info: AppInfo) Allocator.Error!MainPage {
     const current_buffer = try alloc.create(Buffer);
     current_buffer.* = buffer;
 
@@ -145,6 +146,7 @@ pub fn init(alloc: Allocator, dimensions: Vec2, buffer: Buffer, app_info: AppInf
         },
         .current_buffer = current_buffer,
         .alloc = alloc,
+        .io = io,
     };
 }
 
@@ -313,7 +315,7 @@ fn processEvent(self: *MainPage, event: InputEvent) (Allocator.Error || Signal)!
 
                     const file_path = prompt.input.items;
 
-                    var file_data: ?Buffer = zepto.files.importFileData(self.alloc, file_path) catch |e| switch (e) {
+                    var file_data: ?Buffer = zepto.files.importFileData(self.alloc, self.io, file_path) catch |e| switch (e) {
                         Allocator.Error.OutOfMemory => |alloc_err| return alloc_err,
                         else => null,
                     };
@@ -476,7 +478,7 @@ pub fn getCursorParent(self: *MainPage) Allocator.Error!RenderElement {
 
     var elements = try self.getElements(alloc);
     defer elements.deinit(alloc);
-    const cursor_parent = elements.items[@intFromEnum(self.cursor_parent)];
+    const cursor_parent = elements.items[@backingInt(self.cursor_parent)];
 
     return cursor_parent;
 }

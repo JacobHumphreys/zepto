@@ -1,5 +1,5 @@
 const std = @import("std");
-const fs = std.fs;
+const Io = std.Io;
 const control_code = std.ascii.control_code;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -24,11 +24,11 @@ pub const Error = error{
     FailedToExitAltView,
 };
 
-var std_out = fs.File.stdout();
+var std_out = Io.File.stdout();
 var std_out_buff: [2048]u8 = undefined;
 
 /// Causes full page redraw line by line. ReRenders text and cursor
-pub fn reRenderOutput(alloc: Allocator, page: Page) (Allocator.Error || Error)!void {
+pub fn reRenderOutput(alloc: Allocator, io: Io, page: Page) (Allocator.Error || Error)!void {
     var render_arena = ArenaAllocator.init(alloc);
     defer render_arena.deinit();
     const render_alloc = render_arena.allocator();
@@ -37,7 +37,7 @@ pub fn reRenderOutput(alloc: Allocator, page: Page) (Allocator.Error || Error)!v
 
     const print_buffer = try flattenScreenBuffer(render_alloc, screen_buffer_2d, page);
 
-    var std_out_writer = std_out.writer(&std_out_buff);
+    var std_out_writer = std_out.writer(io, &std_out_buff);
 
     std_out_writer.interface.print(
         "{s}{s}{s}",
@@ -52,7 +52,7 @@ pub fn reRenderOutput(alloc: Allocator, page: Page) (Allocator.Error || Error)!v
 
     std_out_writer.interface.flush() catch return Error.FailedToWriteOutput;
 
-    try renderCursor(try page.getCursorParent());
+    try renderCursor(io, try page.getCursorParent());
 }
 
 fn get2dSceenBuffer(alloc: Allocator, page: Page) Allocator.Error![]ArrayList(u8) {
@@ -106,15 +106,16 @@ fn flattenScreenBuffer(alloc: Allocator, buffer_2d: []ArrayList(u8), page: Page)
 
 /// Moves cursor to the screen-space position cooresponding to
 /// the Global space position provided by the CursorContainer
-pub fn renderCursor(cursor_parent: RenderElement) Error!void {
+pub fn renderCursor(io: Io, cursor_parent: RenderElement) Error!void {
     const cursor_position = cursor_parent.cursor_container.?.getCursorPosition();
     return renderCursorFromGlobalSpace(
+        io,
         cursor_position.add(cursor_parent.position),
     );
 }
 
 /// Uses terminal codes to set rendered cursor position based on window state
-fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
+fn renderCursorFromGlobalSpace(io: Io, cursor_position: Vec2) Error!void {
     var write_buf: [32]u8 = undefined;
     const screen_space_position = getScreenSpaceCursorPosition(cursor_position);
     const cursor_move =
@@ -130,7 +131,7 @@ fn renderCursorFromGlobalSpace(cursor_position: Vec2) Error!void {
         ) catch {
             return Error.FailedToMoveCursor;
         };
-    var std_out_writer = std_out.writer(&std_out_buff);
+    var std_out_writer = std_out.writer(io, &std_out_buff);
     std_out_writer.interface.print("{s}", .{cursor_move}) catch {
         return Error.FailedToWriteOutput;
     };
@@ -146,9 +147,9 @@ fn getScreenSpaceCursorPosition(internal_position: Vec2) Vec2 {
     return new_position;
 }
 
-pub fn clearScreen() Error!void {
+pub fn clearScreen(io: std.Io) Error!void {
     const clear_screen = ControlSequence.getValue(.clear_screen).?;
-    var std_out_writer = std_out.writer(&std_out_buff);
+    var std_out_writer = std_out.writer(io, &std_out_buff);
     std_out_writer.interface.print(
         "{s}",
         .{clear_screen},
@@ -158,9 +159,9 @@ pub fn clearScreen() Error!void {
     std_out_writer.interface.flush() catch return Error.FailedToClearScreen;
 }
 
-pub fn enterAltScreen() Error!void {
+pub fn enterAltScreen(io: Io) Error!void {
     const enter_screen = ControlSequence.enter_alt_screen.getValue().?;
-    var std_out_writer = std_out.writer(&std_out_buff);
+    var std_out_writer = std_out.writer(io, &std_out_buff);
     std_out_writer.interface.print(
         "{s}",
         .{enter_screen},
@@ -170,9 +171,9 @@ pub fn enterAltScreen() Error!void {
     std_out_writer.interface.flush() catch return Error.FailedToExitAltView;
 }
 
-pub fn exitAltScreen() !void {
+pub fn exitAltScreen(io: Io) !void {
     const exit_screen = ControlSequence.exit_alt_screen.getValue().?;
-    var std_out_writer = std_out.writer(&std_out_buff);
+    var std_out_writer = std_out.writer(io, &std_out_buff);
     std_out_writer.interface.print(
         "{s}",
         .{exit_screen},

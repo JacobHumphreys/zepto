@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 
 const log = std.log;
 const Allocator = std.mem.Allocator;
@@ -20,18 +21,19 @@ const App = @This();
 terminal: Terminal,
 ui_handler: UIHandler,
 
-pub fn init(alloc: Allocator, app_info: AppInfo) !App {
+pub fn init(alloc: Allocator, io: Io, app_info: AppInfo) !App {
     var terminal = try Terminal.init();
     try terminal.enableRawMode();
     const window_dimensions = Terminal.getWindowSize();
 
     const buffer = if (app_info.buffer_name) |p|
-        try files.importFileData(alloc, p)
+        try files.importFileData(alloc, io, p)
     else
         Buffer.init(alloc);
 
     const ui_handler = try UIHandler.init(
         alloc,
+        io,
         window_dimensions,
         buffer,
         app_info,
@@ -48,8 +50,8 @@ pub fn deinit(self: *App) !void {
     try self.terminal.disableRawMode();
 }
 
-pub fn run(self: *App, alloc: Allocator, input_reader: *std.Io.Reader) Signal!void {
-    paceRedraw();
+pub fn run(self: *App, alloc: Allocator, io: Io, input_reader: *std.Io.Reader) Signal!void {
+    paceRedraw(io) catch std.debug.panic("Redraw Canceled", .{});
 
     const window_size = Terminal.getWindowSize();
     if (!std.meta.eql(window_size, self.ui_handler.getOutputDimensions())) {
@@ -66,7 +68,7 @@ pub fn run(self: *App, alloc: Allocator, input_reader: *std.Io.Reader) Signal!vo
 
     self.ui_handler.processEvent(event) catch |err| switch (err) {
         Signal.SaveBuffer => {
-            files.exportFileData(self.ui_handler.getCurrentBuffer(), alloc) catch |e| {
+            files.exportFileData(self.ui_handler.getCurrentBuffer(), alloc, io) catch |e| {
                 log.err("Could Not Export File Data: {any}", .{e});
             };
         },
@@ -81,11 +83,12 @@ pub fn run(self: *App, alloc: Allocator, input_reader: *std.Io.Reader) Signal!vo
 const max_refresh = @as(i64, @intFromFloat(1.0 / (100.0 * 1000)));
 
 var last_update: i64 = 0;
-fn paceRedraw() void {
-    const delta_time = std.time.milliTimestamp() - last_update;
-    last_update = std.time.milliTimestamp();
+fn paceRedraw(io: Io) Io.Cancelable!void {
+    const clock = Io.Clock.cpu_process;
+    const now = clock.now(io).toMilliseconds();
+    const delta_time = now - last_update;
     if (max_refresh > delta_time) {
-        const sleep_time: u64 = @intCast((max_refresh - delta_time) * 1000 * 1000);
-        std.Thread.sleep(sleep_time);
+        const sleep_time = max_refresh - delta_time;
+        try io.sleep(.fromMilliseconds(sleep_time), clock);
     }
 }
