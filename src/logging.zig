@@ -7,43 +7,35 @@ const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const Environ = std.process.Environ;
 
-const c = @import("c");
 const known_folders = @import("known-folders");
 
 pub var log_file: ?Io.File = null;
 pub var log_writer: ?Io.Writer = null;
 
-fn init() !Io.File {
-    var path_buffer: [1024]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&path_buffer);
-    const alloc = fba.allocator();
-    var threaded_io = std.Io.Threaded.init(alloc, .{});
-    const io = threaded_io.io();
+pub fn init(alloc: Allocator, io: Io, env_map: *const std.process.Environ.Map) !void {
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
 
-    const env = std.process.Environ{
-        .block = .empty,
-    };
+    const log_dir = try getLogDir(arena_alloc, io, env_map);
 
-    const log_dir = try getLogDir(alloc, io, env);
-    const time_stamp = try getTimeStamp(alloc);
-    const log_name = try std.mem.join(alloc, "", &.{ time_stamp, ".log" });
+    const time_stamp = try getTimeStamp(arena_alloc, io);
 
-    return log_dir.createFile(io, log_name, .{});
+    const log_name = try std.mem.join(arena_alloc, "", &.{ time_stamp, ".log" });
+
+    log_file = try log_dir.createFile(io, log_name, .{});
 }
 
 fn getLogDir(
     alloc: Allocator,
     io: Io,
-    env: std.process.Environ,
+    env_map: *const std.process.Environ.Map,
 ) (known_folders.Error || Environ.CreateMapError || Dir.CreateDirError ||
     Dir.OpenError)!Io.Dir {
-    var map = try env.createMap(alloc);
-    defer map.deinit();
-
     const data_dir = try known_folders.getPath(
         io,
         alloc,
-        &map,
+        env_map,
         known_folders.KnownFolder.data,
     ) orelse std.debug.panic("Terminal Error: Data folder path could not be determined.", .{});
 
@@ -51,7 +43,8 @@ fn getLogDir(
         try Io.Dir.createDirAbsolute(io, data_dir, .default_file);
     };
 
-    const log_dir_path = try fs.path.join(alloc, &.{ data_dir, "logs" });
+    const log_dir_path = try fs.path.join(alloc, &.{ data_dir, "zepto" });
+    defer alloc.free(log_dir_path);
 
     const file_dir = Dir.openDirAbsolute(io, log_dir_path, .{}) catch {
         try Dir.createDirAbsolute(io, log_dir_path, .default_dir);
@@ -60,13 +53,28 @@ fn getLogDir(
     return file_dir;
 }
 
-fn getTimeStamp(alloc: Allocator) ![]const u8 {
-    var now: c.time_t = undefined;
-    _ = c.time(&now);
-    const time_info = c.localtime(&now);
-    const date = c.asctime(time_info);
-    const time_stamp = try std.fmt.allocPrint(alloc, "{s}", .{date});
-    return time_stamp[0 .. time_stamp.len - 1]; //remove trailing newLine
+fn getTimeStamp(alloc: Allocator, io: Io) Allocator.Error![]const u8 {
+    var now = std.Io.Clock.real.now(io);
+    var epoch = std.time.epoch.EpochSeconds{
+        .secs = @intCast(now.toSeconds()),
+    };
+
+    const year_day = epoch.getEpochDay().calculateYearDay();
+    const month_day = year_day.calculateMonthDay();
+    const day_seconds = epoch.getDaySeconds();
+
+    return std.fmt.allocPrint(
+        alloc,
+        "{}-{}-{}-{}-{}-{}",
+        .{
+            year_day.year,
+            month_day.month.numeric(),
+            month_day.day_index + 1,
+            day_seconds.getHoursIntoDay(),
+            day_seconds.getMinutesIntoHour(),
+            day_seconds.getSecondsIntoMinute(),
+        },
+    );
 }
 
 pub fn log(
@@ -75,7 +83,7 @@ pub fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    log_file = log_file orelse init() catch |err| debug.panic("{t}", .{err});
+    std.debug.assert(log_file != null);
 
     var alloc_buf: [1028]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&alloc_buf);

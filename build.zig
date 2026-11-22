@@ -48,13 +48,6 @@ pub fn build(b: *std.Build) void {
         },
     });
 
-    const translateC = b.addTranslateC(.{
-        .link_libc = true,
-        .optimize = optimize,
-        .target = target,
-        .root_source_file = b.path("./lib/c.h"),
-    });
-
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -70,10 +63,6 @@ pub fn build(b: *std.Build) void {
                 .module = lib_tui_mod,
             },
             .{
-                .name = "c",
-                .module = translateC.createModule(),
-            },
-            .{
                 .name = "known-folders",
                 .module = known_folders.module("known-folders"),
             },
@@ -84,6 +73,15 @@ pub fn build(b: *std.Build) void {
         .name = "zepto",
         .root_module = exe_mod,
     });
+
+    const debug = b.addExecutable(.{
+        .name = "debug",
+        .root_module = exe_mod,
+        .use_llvm = true,
+    });
+
+    const debug_step = b.step("debug", "emits a debug executable compiled with llvm");
+    debug_step.dependOn(&b.addInstallArtifact(debug, .{}).step);
 
     var build_options = std.Build.Step.Options.create(b);
     build_options.addOption([]const u8, "contents", build_zig_zon);
@@ -100,14 +98,9 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const exe_comp_check = b.addExecutable(.{
-        .name = "zepto",
-        .root_module = exe_mod,
-    });
-
     const check_step = b.step("check", "checks for compilation errors");
 
-    check_step.dependOn(&exe_comp_check.step);
+    check_step.dependOn(&exe.step);
 
     const lib_unit_tests = b.addTest(.{
         .root_module = lib_zepto_mod,

@@ -11,6 +11,10 @@ pub const std_options: std.Options = .{
 };
 
 pub fn main(init: std.process.Init) !void {
+    const alloc = init.gpa;
+    const io = init.io;
+    try logging.init(alloc, io, init.environ_map);
+
     var args = init.minimal.args.iterate();
 
     _ = args.skip();
@@ -32,7 +36,7 @@ pub fn main(init: std.process.Init) !void {
     var stdin_reader = stdin_file.reader(init.io, &stdin_buffer);
 
     while (true) {
-        app.run(init.gpa, init.io, &stdin_reader.interface) catch |err| switch (err) {
+        app.run(alloc, io, &stdin_reader.interface) catch |err| switch (err) {
             Signal.Exit => break,
             else => return err,
         };
